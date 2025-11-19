@@ -91,3 +91,44 @@ def google_callback(request: Request):
 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get("/github/login")
+def github_login():
+    """Generate a URL to login with GitHub."""
+    response = supabase.auth.sign_in_with_oauth(
+        {
+            "provider": "github",
+            "options": {
+                "redirect_to": "http://127.0.0.1:8000/auth/github/callback",
+            }
+        }
+    )
+    return RedirectResponse(response.url)
+
+
+@router.get("/github/callback")
+def github_callback(request: Request):
+    """
+    Callback endpoint for GitHub OAuth. Exchanges the code for a session.
+    """
+    try:
+        code = request.query_params.get("code")
+        if not code:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Authorization code not found")
+        
+        session_data = supabase.auth.exchange_code_for_session({"auth_code": code})
+        user = session_data.user
+
+        return {
+            "message": "Successfully logged in with GitHub!",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "aud": user.aud,
+                "created_at": user.created_at
+            }
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
