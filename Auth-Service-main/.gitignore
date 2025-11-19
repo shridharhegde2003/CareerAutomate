@@ -1,0 +1,55 @@
+# Python cache and build files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files (contains secrets like Supabase keys)
+.env
+.env.*
+.venv/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+
+# Database files (if using local DB for dev/testing)
+*.db
+*.sqlite3
+
+# Dependency directories
+__pypackages__/
+*.egg-info/
+.eggs/
+
+# Coverage reports
+htmlcov/
+.coverage
+
+# Migrations (if using Alembic — optional)
+migrations/
+
+# MacOS specific
+.DS_Store
+
+# Test output
+.pytest_cache/
+
+# MyPy type checker cache
+.mypy_cache/
+
+# Pycharm project files
+*.iml
+
+# pipenv
+Pipfile.lock

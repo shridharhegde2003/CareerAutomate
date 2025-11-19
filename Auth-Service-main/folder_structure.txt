@@ -1,0 +1,23 @@
+main.py — the front door / router. Starts the app and plugs in routes.
+
+database.py — the wiring to Supabase. One place to change DB credentials.
+
+schemas.py — the forms and rules. Pydantic models that validate incoming/outgoing data.
+
+utils.py — the toolbox (hashing, JWT helpers). Reusable logic lives here.
+
+deps.py — the shared guards/middlewares (e.g., get_current_user) that many routes use.
+
+auth.py — the auth controller — register/login/me endpoints.
+
+.env / requirements.txt — config and dependency list.
+
+Why split?
+
+Separation of concerns: each file has one job → easier to debug.
+
+Reusability: other parts of your system can import just the bits they need.
+
+Testability: easier to unit-test small modules.
+
+Scalability: when the project grows (roles, refresh tokens, email), you’ll thank yourself.
