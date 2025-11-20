@@ -14,6 +14,7 @@ const steps = [
   { id: 2, title: 'Career Questionnaire' },
   { id: 3, title: 'Connect your accounts' },
   { id: 4, title: 'Setup Account APIs' },
+  { id: 5, title: 'Review & Finish' },
 ];
 
 export function OnboardingForm() {
@@ -46,6 +47,7 @@ export function OnboardingForm() {
         {currentStep === 2 && <Step2 />}
         {currentStep === 3 && <Step3 />}
         {currentStep === 4 && <Step4 />}
+        {currentStep === 5 && <Step5 />}
         
         <div className="flex justify-between mt-8">
           {currentStep > 1 && (
@@ -250,6 +252,60 @@ function Step4() {
           <Label htmlFor="gmail-api">Gmail API Key (Optional)</Label>
           <Input id="gmail-api" placeholder="Enter your Gmail API Key" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function Step5() {
+  // In a real application, this data would be fetched from the form state
+  const formData = {
+    personal: { name: 'Sarah Johnson', email: 'sarah.johnson@email.com', location: 'San Francisco, CA' },
+    career: { role: 'Product Manager', industry: 'Technology', salary: '$120,000 - $150,000' },
+    skills: { skills: 'Product Management, Agile, User Research', experience: '5+', education: 'Master’s in Business Administration' },
+  };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Review & Finish</h2>
+      <p className="text-muted-foreground">Please review your information below before completing the onboarding process.</p>
+      
+      <div className="space-y-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg">Personal Information</CardTitle>
+            <Button variant="link">Edit</Button>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p><strong>Name:</strong> {formData.personal.name}</p>
+            <p><strong>Email:</strong> {formData.personal.email}</p>
+            <p><strong>Location:</strong> {formData.personal.location}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg">Career Goals</CardTitle>
+            <Button variant="link">Edit</Button>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p><strong>Desired Role:</strong> {formData.career.role}</p>
+            <p><strong>Industry:</strong> {formData.career.industry}</p>
+            <p><strong>Salary Expectation:</strong> {formData.career.salary}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg">Skills & Experience</CardTitle>
+            <Button variant="link">Edit</Button>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p><strong>Skills:</strong> {formData.skills.skills}</p>
+            <p><strong>Years of Experience:</strong> {formData.skills.experience}</p>
+            <p><strong>Education:</strong> {formData.skills.education}</p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

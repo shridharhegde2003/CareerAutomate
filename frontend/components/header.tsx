@@ -30,11 +30,23 @@ export function Header() {
 
         <button
           onClick={toggleTheme}
-          className="p-2 rounded-lg hover:bg-secondary transition-colors"
+          className="p-2 rounded-lg hover:bg-secondary transition-colors mr-4"
           aria-label="Toggle theme"
         >
           {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
+
+        <div className="flex items-center gap-4">
+          <a href="/login" className="text-sm font-medium hover:text-primary transition-colors">
+            Login
+          </a>
+          <a
+            href="/login"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded-md text-sm font-medium transition-colors"
+          >
+            Get Started
+          </a>
+        </div>
       </div>
     </header>
   )

@@ -76,18 +76,15 @@ def google_callback(request: Request):
         session_data = supabase.auth.exchange_code_for_session({"auth_code": code})
         user = session_data.user
         
-        # You can now use the user object for your application's logic
-        # For example, you could return the user's details or a JWT token
-
-        return {
-            "message": "Successfully logged in with Google!",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "aud": user.aud,
-                "created_at": user.created_at
-            }
-        }
+        # Check if profile exists
+        profile_check = supabase.table("profiles").select("*").eq("id", user.id).execute()
+        
+        if profile_check.data:
+            # Profile exists, redirect to dashboard
+            return RedirectResponse("http://localhost:3000/dashboard")
+        else:
+            # Profile does not exist, redirect to onboarding
+            return RedirectResponse("http://localhost:3000/onboarding")
 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -120,15 +117,15 @@ def github_callback(request: Request):
         session_data = supabase.auth.exchange_code_for_session({"auth_code": code})
         user = session_data.user
 
-        return {
-            "message": "Successfully logged in with GitHub!",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "aud": user.aud,
-                "created_at": user.created_at
-            }
-        }
+        # Check if profile exists
+        profile_check = supabase.table("profiles").select("*").eq("id", user.id).execute()
+        
+        if profile_check.data:
+            # Profile exists, redirect to dashboard
+            return RedirectResponse("http://localhost:3000/dashboard")
+        else:
+            # Profile does not exist, redirect to onboarding
+            return RedirectResponse("http://localhost:3000/onboarding")
 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
