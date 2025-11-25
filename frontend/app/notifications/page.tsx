@@ -60,45 +60,65 @@ export default function NotificationsPage() {
             setNotifications(notifications.map(n =>
                 n.id === id ? { ...n, is_read: true } : n
             ));
-            <Card>
-                <CardContent className="pt-6">
-                    <p className="text-center text-muted-foreground">
-                        No notifications yet
-                    </p>
-                </CardContent>
-            </Card>
-                        ) : (
-        notifications.map((notification) => (
-            <Card
-                key={notification.id}
-                className={notification.is_read ? 'opacity-60' : ''}
-                onClick={() => !notification.is_read && markAsRead(notification.id)}
-            >
-                <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                                <h3 className="font-semibold">{notification.title}</h3>
-                                {!notification.is_read && (
-                                    <Badge variant="default">New</Badge>
-                                )}
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                                {notification.message}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-2">
-                                {new Date(notification.created_at).toLocaleString()}
-                            </p>
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+        }
+    };
+
+    return (
+        <div className="flex h-screen bg-background">
+            <DashboardNav />
+
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <DashboardHeader />
+
+                <div className="flex-1 overflow-auto">
+                    <div className="p-8">
+                        <h1 className="text-3xl font-bold mb-8">Notifications</h1>
+
+                        <div className="space-y-4">
+                            {loading ? (
+                                <div>Loading...</div>
+                            ) : notifications.length === 0 ? (
+                                <Card>
+                                    <CardContent className="pt-6">
+                                        <p className="text-center text-muted-foreground">
+                                            No notifications yet
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                            ) : (
+                                notifications.map((notification) => (
+                                    <Card
+                                        key={notification.id}
+                                        className={notification.is_read ? 'opacity-60' : ''}
+                                        onClick={() => !notification.is_read && markAsRead(notification.id)}
+                                    >
+                                        <CardContent className="pt-6">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <h3 className="font-semibold">{notification.title}</h3>
+                                                        {!notification.is_read && (
+                                                            <Badge variant="default">New</Badge>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {notification.message}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-2">
+                                                        {new Date(notification.created_at).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))
+                            )}
                         </div>
                     </div>
-                </CardContent>
-            </Card>
-        ))
-    )
-}
-                    </div >
-                </div >
-            </div >
-        </div >
+                </div>
+            </div>
+        </div>
     );
 }
