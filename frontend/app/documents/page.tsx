@@ -20,6 +20,9 @@ import { DashboardHeader } from "@/components/dashboard-header";
 import { supabase } from "@/lib/supabase";
 import { Edit, Download, Trash2, Upload, FileText } from "lucide-react";
 
+// TODO: Import AI service functions when AI-Service microservice is implemented
+// import { generateAIResume, tailorResume } from "@/lib/api-services";
+
 interface Document {
     id: string;
     title: string;
@@ -210,12 +213,62 @@ export default function DocumentsPage() {
                 .update({ auto_tailor: value })
                 .eq('id', docId);
 
+            // TODO: When AI-Service is implemented, trigger resume tailoring
+            // if (value) {
+            //   const { data: { user } } = await supabase.auth.getUser();
+            //   await tailorResume({
+            //     resumeId: docId,
+            //     jobDescription: "[Get from job posting]"
+            //   });
+            // }
+
             setDocuments(documents.map(doc =>
                 doc.id === docId ? { ...doc, auto_tailor: value } : doc
             ));
         } catch (error) {
             console.error('Error updating auto-tailor:', error);
         }
+    };
+
+    // TODO: Implement AI Resume Generation
+    // This will call AI-Service microservice to generate resume using LLM
+    const handleCreateResume = async (targetRole: string) => {
+        // TODO: Uncomment when AI-Service (port 8001) is ready
+        /*
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Fetch user profile data for resume generation
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            // Call AI-Service to generate resume
+            const result = await generateAIResume({
+                userId: user.id,
+                targetRole: targetRole,
+                userProfile: profile
+            });
+
+            // Save generated resume to database
+            if (result.success) {
+                await supabase.from('documents').insert({
+                    user_id: user.id,
+                    document_type: 'resume',
+                    title: `${targetRole} Resume`,
+                    role: targetRole,
+                    file_url: result.resume_url
+                });
+                await fetchDocuments();
+            }
+        } catch (error) {
+            console.error('Error generating resume:', error);
+        }
+        */
+        alert('AI Resume Generation will be available when AI-Service microservice is implemented');
     };
 
     const getRoleBadge = (role: string | null) => {
@@ -321,7 +374,13 @@ export default function DocumentsPage() {
                                         <div className="mt-6 p-8 border-2 border-dashed rounded-lg text-center">
                                             <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                                             <p className="text-muted-foreground mb-4">Create a new AI-powered resume</p>
-                                            <Button>Create New Resume</Button>
+                                            <Button onClick={() => handleCreateResume('Software Engineer')}>
+                                                Create New Resume
+                                            </Button>
+                                            <p className="text-xs text-muted-foreground mt-2">
+                                                {/* TODO: AI-Service integration pending */}
+                                                Powered by AI (Coming Soon)
+                                            </p>
                                         </div>
                                     )}
                                 </div>

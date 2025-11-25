@@ -9,16 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { DashboardHeader } from "@/components/dashboard-header";
-import { Download, FileUp } from "lucide-react";
-
-export default function ReportsPage() {
-    const [dateRange, setDateRange] = useState("Last 30 Days");
-
-    return (
-        <div className="flex h-screen bg-background">
-            <DashboardNav />
-
-            <div className="flex-1 flex flex-col overflow-hidden">
                 <DashboardHeader />
 
                 <div className="flex-1 overflow-auto">
@@ -198,7 +188,7 @@ export default function ReportsPage() {
                         </Card>
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }
