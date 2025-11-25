@@ -9,6 +9,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { Download, FileUp } from "lucide-react";
+
+// TODO: Import analytics service functions when microservices are implemented
+// import { getApplicationAnalytics, getSkillTrends, analyzeResumePerformance } from "@/lib/api-services";
+
+export default function ReportsPage() {
+    const [dateRange, setDateRange] = useState("Last 30 Days");
+
+    // TODO: Fetch real analytics data from Analytics-Service (port 8003)
+    // useEffect(() => {
+    //   const fetchAnalytics = async () => {
+    //     const analytics = await getApplicationAnalytics(userId);
+    //     const resumePerf = await analyzeResumePerformance({ resumeId });
+    //     const skillTrends = await getSkillTrends();
+    //     // Update state with real data
+    //   };
+    //   fetchAnalytics();
+    // }, [dateRange]);
+
+    return (
+        <div className="flex h-screen bg-background">
+            <DashboardNav />
+
+            <div className="flex-1 flex flex-col overflow-hidden">
                 <DashboardHeader />
 
                 <div className="flex-1 overflow-auto">
@@ -188,7 +212,7 @@ import { DashboardHeader } from "@/components/dashboard-header";
                         </Card>
                     </div>
                 </div>
-            </div >
-        </div >
+            </div>
+        </div>
     );
 }
