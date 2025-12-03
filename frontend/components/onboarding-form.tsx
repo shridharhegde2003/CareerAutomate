@@ -168,11 +168,19 @@ export function OnboardingForm() {
         },
       };
 
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error("No active session");
+      }
+
       // Submit to backend
       const response = await fetch('http://localhost:8000/profiles/onboarding', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify(payload),
       });
