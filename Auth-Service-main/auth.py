@@ -1,47 +1,142 @@
 # auth.py
 from fastapi import APIRouter, HTTPException, status, Depends
-from schemas import UserCreate, UserLogin, Token, UserResponse
+from schemas import UserCreate, UserLogin, Token, UserResponse, VerifyOTP
 from database import supabase
-from utils import hash_password, verify_password, create_access_token
 from deps import get_current_user
 from fastapi import Request
 from starlette.responses import RedirectResponse
+from email_service import send_otp_email
+import random
+import string
+from datetime import datetime, timedelta, timezone
+import os
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def generate_otp():
+    return ''.join(random.choices(string.digits, k=6))
+
+@router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(payload: UserCreate):
-    # check existing email
-    check = supabase.table("users").select("*").eq("email", payload.email).execute()
-    if check.data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+    try:
+        # 1. Create user in Supabase Auth (Identity)
+        # We use sign_up. If "Confirm Email" is OFF in Supabase, this returns a session.
+        # If ON, it sends an email (which we might ignore if we want our own flow).
+        # Ideally, turn OFF Supabase email confirmation for this hybrid flow.
+        auth_res = supabase.auth.sign_up({
+            "email": payload.email,
+            "password": payload.password,
+        })
+        
+        if not auth_res.user:
+             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Registration failed")
+        
+        user_id = auth_res.user.id
+        
+        # 2. Generate Custom OTP
+        otp = generate_otp()
+        otp_expiry = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
 
-    pw = hash_password(payload.password)
-    resp = supabase.table("users").insert({
-        "email": payload.email,
-        "password": pw
-    }).execute()
+        # 3. Store in public.users (or update if exists)
+        # We use upsert to handle cases where auth user exists but public user might not
+        data = {
+            "id": user_id,
+            "email": payload.email,
+            "otp": otp,
+            "otp_expiry": otp_expiry,
+            "is_verified": False
+        }
+        
+        # Check if row exists to decide insert vs update, or just upsert
+        supabase.table("users").upsert(data).execute()
 
+        # 4. Send Custom Email
+        email_sent = send_otp_email(payload.email, otp)
+        
+        return {"message": "User created. Please verify your email with the OTP sent.", "email_sent": email_sent}
+
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+@router.post("/verify-otp")
+def verify_otp(payload: VerifyOTP):
+    # Check our public.users table
+    resp = supabase.table("users").select("*").eq("email", payload.email).limit(1).execute()
     if not resp.data:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not create user")
-
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
     user = resp.data[0]
-    user.pop("password", None)
-    return user
+    
+    if user.get("is_verified"):
+        return {"message": "User already verified"}
+
+    # Check OTP
+    if user.get("otp") != payload.otp:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP")
+    
+    # Check Expiry
+    if user.get("otp_expiry"):
+        expiry_time = datetime.fromisoformat(user["otp_expiry"])
+        # Make current time timezone-aware for comparison
+        if expiry_time < datetime.now(timezone.utc):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OTP expired")
+
+    # Verify User
+    supabase.table("users").update({
+        "is_verified": True,
+        "otp": None,
+        "otp_expiry": None
+    }).eq("id", user["id"]).execute()
+
+    # Return Session
+    # We need to sign them in to get a fresh token, or if we trust the flow, we can just return a message
+    # But the frontend expects a token.
+    # Since we don't have the password here, we can't sign_in_with_password.
+    # We rely on the client to login again OR we return the token if we had it.
+    # BUT, for security, usually we ask them to login.
+    # HOWEVER, to make it seamless:
+    # If Supabase "Confirm Email" is OFF, the `register` call actually returned a session!
+    # But we didn't send it back.
+    # Let's just ask them to login for now, OR we can try to get a session if possible.
+    # Actually, the frontend `handleVerify` expects a token?
+    # Let's look at frontend... it redirects to `/login?verified=true`.
+    # So we just need to return success.
+    
+    return {"message": "Email verified successfully. Please login."}
 
 @router.post("/login", response_model=Token)
 def login(payload: UserLogin):
-    resp = supabase.table("users").select("*").eq("email", payload.email).limit(1).execute()
-    if not resp.data:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    try:
+        # 1. Authenticate with Supabase
+        res = supabase.auth.sign_in_with_password({
+            "email": payload.email,
+            "password": payload.password
+        })
+        
+        if not res.session:
+             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        
+        user_id = res.user.id
 
-    user = resp.data[0]
-    if not verify_password(payload.password, user["password"]):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        # 2. Check Verification Status in public.users
+        # We enforce this check!
+        user_data = supabase.table("users").select("is_verified").eq("id", user_id).single().execute()
+        
+        if not user_data.data or not user_data.data.get("is_verified"):
+             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email not verified. Please verify your OTP.")
 
-    user_id = user["id"]
-    access = create_access_token(subject=user_id)
-    return {"access_token": access, "token_type": "bearer"}
+        return {
+            "access_token": res.session.access_token,
+            "token_type": "bearer"
+        }
+
+    except Exception as e:
+        # If it's our 403, re-raise it
+        if "Email not verified" in str(e):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email not verified. Please verify your OTP.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+
 
 @router.get("/me", response_model=UserResponse)
 def me(current_user = Depends(get_current_user)):
@@ -65,8 +160,7 @@ def google_login():
 @router.get("/google/callback")
 def google_callback(request: Request):
     """
-    Callback endpoint for Google OAuth. This endpoint is called by Supabase after a successful login.
-    It exchanges the code for a session and returns the user's details.
+    Callback endpoint for Google OAuth. 
     """
     try:
         code = request.query_params.get("code")
@@ -76,15 +170,14 @@ def google_callback(request: Request):
         session_data = supabase.auth.exchange_code_for_session({"auth_code": code})
         user = session_data.user
         
-        # Check if profile exists
-        profile_check = supabase.table("profiles").select("*").eq("id", user.id).execute()
+        # Check if profile exists (Logic moved to frontend/onboarding service, but we still redirect)
+        # Since we removed profiles.py, we just redirect to dashboard. 
+        # Frontend will handle "if profile missing -> go to onboarding" logic via its own check if needed.
+        # OR we redirect to onboarding by default for new users?
+        # User said: "Remove those [backend technologies]... logic moved to teammate's service"
+        # So we just redirect to dashboard, and let frontend decide.
         
-        if profile_check.data:
-            # Profile exists, redirect to dashboard
-            return RedirectResponse("http://localhost:3000/dashboard")
-        else:
-            # Profile does not exist, redirect to onboarding
-            return RedirectResponse("http://localhost:3000/onboarding")
+        return RedirectResponse(f"{FRONTEND_URL}/dashboard")
 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -106,26 +199,14 @@ def github_login():
 
 @router.get("/github/callback")
 def github_callback(request: Request):
-    """
-    Callback endpoint for GitHub OAuth. Exchanges the code for a session.
-    """
     try:
         code = request.query_params.get("code")
         if not code:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Authorization code not found")
         
         session_data = supabase.auth.exchange_code_for_session({"auth_code": code})
-        user = session_data.user
-
-        # Check if profile exists
-        profile_check = supabase.table("profiles").select("*").eq("id", user.id).execute()
         
-        if profile_check.data:
-            # Profile exists, redirect to dashboard
-            return RedirectResponse("http://localhost:3000/dashboard")
-        else:
-            # Profile does not exist, redirect to onboarding
-            return RedirectResponse("http://localhost:3000/onboarding")
+        return RedirectResponse(f"{FRONTEND_URL}/dashboard")
 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

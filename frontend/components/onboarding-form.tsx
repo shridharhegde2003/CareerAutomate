@@ -176,20 +176,14 @@ export function OnboardingForm() {
       }
 
       // Submit to backend
-      const response = await fetch('http://localhost:8000/profiles/onboarding', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify(payload),
-      });
+      console.log("Submitting payload to teammate's microservice (placeholder):", payload);
 
-      if (response.ok) {
-        router.push('/dashboard');
-      } else {
-        alert('Error submitting form. Please try again.');
-      }
+      // Simulate success
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Redirect to dashboard
+      router.push('/dashboard');
+
     } catch (error) {
       console.error('Submission error:', error);
       alert('Error submitting form. Please try again.');

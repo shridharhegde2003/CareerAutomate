@@ -9,11 +9,11 @@ import { Label } from "@/components/ui/label"
 
 export default function LoginPage() {
   const handleGoogleSignIn = () => {
-    window.location.href = 'http://127.0.0.1:8000/auth/google/login';
+    window.location.href = `${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'http://127.0.0.1:8000'}/auth/google/login`;
   };
 
   const handleGitHubSignIn = () => {
-    window.location.href = 'http://127.0.0.1:8000/auth/github/login';
+    window.location.href = `${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'http://127.0.0.1:8000'}/auth/github/login`;
   };
 
   return (

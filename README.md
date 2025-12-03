@@ -1,32 +1,3 @@
-# CareerAutoMate - Development Progress
-
-> **Note**: This README tracks development progress. Final documentation will be added upon project completion.
-
-## Project Overview
-CareerAutoMate is a job automation platform with OAuth authentication, dynamic onboarding, and a comprehensive dashboard for managing job search activities.
-
-## Tech Stack
-- **Backend**: FastAPI (Python)
-- **Frontend**: Next.js 14 (React, TypeScript)
-- **Database**: Supabase (PostgreSQL)
-- **Storage**: Supabase Storage
-- **Authentication**: OAuth (Google, GitHub) via Supabase
-
----
-
-## ✅ Completed Features
-
-### 1. Authentication System
-- **OAuth Integration**: Google and GitHub login via Supabase
-- **Smart Redirection**:
-  - New users → Onboarding flow
-  - Existing users → Dashboard
-- **Session Management**: Supabase handles tokens and session persistence
-- **Logout**: Available on all dashboard pages via profile avatar dropdown
-
-**Backend Endpoints** (`Auth-Service-main/auth.py`):
-```
-POST /auth/register
 POST /auth/login
 GET  /auth/google/login
 GET  /auth/google/callback
