@@ -89,21 +89,25 @@ def verify_otp(payload: VerifyOTP):
         "otp_expiry": None
     }).eq("id", user["id"]).execute()
 
-    # Return Session
-    # We need to sign them in to get a fresh token, or if we trust the flow, we can just return a message
-    # But the frontend expects a token.
-    # Since we don't have the password here, we can't sign_in_with_password.
-    # We rely on the client to login again OR we return the token if we had it.
-    # BUT, for security, usually we ask them to login.
-    # HOWEVER, to make it seamless:
-    # If Supabase "Confirm Email" is OFF, the `register` call actually returned a session!
-    # But we didn't send it back.
-    # Let's just ask them to login for now, OR we can try to get a session if possible.
-    # Actually, the frontend `handleVerify` expects a token?
-    # Let's look at frontend... it redirects to `/login?verified=true`.
-    # So we just need to return success.
+    # Sign in the user to get a session token
+    # We can't use sign_in_with_password here because we don't have the password.
+    # Instead, we can use Supabase's admin API to create a session.
+    # For simplicity and security, we'll use the user's ID to generate a custom JWT.
+    # Actually, Supabase wants us to use their session management.
+    # The best approach: return a message asking them to login, OR we can generate our own JWT.
+    # Let's generate a JWT using the same utility Supabase uses internally.
     
-    return {"message": "Email verified successfully. Please login."}
+    # Actually, the cleanest approach: use Supabase admin auth to generate a session
+    # But the Python SDK doesn't expose that easily.
+    # Let's use our utility function to create an access token.
+    from utils import create_access_token
+    access_token = create_access_token(subject=user["id"])
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "message": "Email verified successfully"
+    }
 
 @router.post("/login", response_model=Token)
 def login(payload: UserLogin):

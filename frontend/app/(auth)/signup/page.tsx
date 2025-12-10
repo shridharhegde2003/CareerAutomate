@@ -71,8 +71,15 @@ export default function SignupPage() {
         throw new Error(data.detail || "Verification failed");
       }
 
-      // Redirect to login or dashboard
-      router.push("/login?verified=true");
+      // Store the access token
+      if (data.access_token) {
+        localStorage.setItem("access_token", data.access_token);
+        // Redirect to onboarding
+        router.push("/onboarding");
+      } else {
+        // Fallback if no token (shouldn't happen)
+        router.push("/login?verified=true");
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
