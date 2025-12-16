@@ -116,19 +116,25 @@ export default function SettingsPage() {
     };
 
     if (loading) {
-        return <div className="flex items-center justify-center h-screen">Loading...</div>;
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+                <div className="flex items-center gap-3">
+                    <div className="h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-lg font-medium">Loading profile...</span>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="flex h-screen bg-background">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
             <DashboardNav />
 
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <DashboardHeader />
+            <div className="ml-64">
+                <DashboardHeader title="Profile" subtitle="Manage your account settings and preferences" />
 
-                <div className="flex-1 overflow-auto">
-                    <div className="p-8">
-                        <h1 className="text-3xl font-bold mb-8">Profile</h1>
+                <div className="p-6">
+                    <div className="space-y-6 max-w-4xl">
 
                         <div className="space-y-6 max-w-4xl">
                             {/* Personal Details */}
@@ -414,7 +420,7 @@ export default function SettingsPage() {
                             </Card>
 
                             {/* Social Account Connections */}
-                            <Card>
+                            <Card className="border-0 shadow-sm">
                                 <CardHeader>
                                     <CardTitle>Social Account Connections</CardTitle>
                                 </CardHeader>

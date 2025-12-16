@@ -1,0 +1,17 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "auth-service"
+resolve_s3 = true
+s3_prefix = "auth-service"
+region = "eu-north-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+parameter_overrides = "SupabaseUrl=\"https://sapmqweflhqfprkjoikk.supabase.co\" FrontendUrl=\"https://career-automate.vercel.app\" MailUsername=\"friendzone108108@gmail.com\""
+image_repositories = []
+
+[default.build.parameters]
+use_container = true
+
+[default.global.parameters]
+region = "eu-north-1"

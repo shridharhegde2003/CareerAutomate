@@ -2,13 +2,67 @@
 // This file contains placeholder functions for AI-powered features
 // Each function will call the respective microservice when implemented
 
-const AI_SERVICE_URL = 'http://localhost:8001';
-const JOB_SERVICE_URL = 'http://localhost:8002';
-const ANALYTICS_SERVICE_URL = 'http://localhost:8003';
+const AI_SERVICE_URL = process.env.NEXT_PUBLIC_AI_SERVICE_URL || 'http://localhost:8001';
+const JOB_SERVICE_URL = process.env.NEXT_PUBLIC_JOB_SERVICE_URL || 'http://localhost:8002';
+const ANALYTICS_SERVICE_URL = process.env.NEXT_PUBLIC_ANALYTICS_SERVICE_URL || 'http://localhost:8003';
+const ONBOARDING_SERVICE_URL = process.env.NEXT_PUBLIC_ONBOARDING_SERVICE_URL || 'http://localhost:8004';
 
 // ============================================================================
-// AI-SERVICE ENDPOINTS (Resume Generation, Tailoring, Skill Analysis)
+// ONBOARDING ENDPOINTS
 // ============================================================================
+
+/**
+ * GET User Profile
+ * Endpoint: GET /v1/onboarding
+ * Used to check if user has completed onboarding or to fetch profile for editing.
+ */
+export async function getUserProfile(token: string) {
+    console.log('Fetching user profile from:', `${ONBOARDING_SERVICE_URL}/v1/onboarding`);
+
+    const response = await fetch(`${ONBOARDING_SERVICE_URL}/v1/onboarding`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (response.status === 404) {
+        return null; // Profile not found (User needs onboarding)
+    }
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch user profile');
+    }
+
+    return await response.json();
+}
+
+/**
+ * Submit Onboarding Data (Upsert)
+ * Endpoint: PUT /v1/onboarding
+ * Used for both creating NEW profiles and UPDATING existing ones.
+ */
+export async function submitOnboardingData(payload: any, token: string) {
+    console.log('Submitting onboarding data to:', `${ONBOARDING_SERVICE_URL}/v1/onboarding`);
+    console.log('Payload:', payload);
+
+    const response = await fetch(`${ONBOARDING_SERVICE_URL}/v1/onboarding`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to submit onboarding data');
+    }
+
+    return await response.json();
+}
 
 /**
  * TODO: Generate AI-powered resume based on user profile and target role

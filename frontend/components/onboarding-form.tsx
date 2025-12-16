@@ -140,25 +140,32 @@ export function OnboardingForm() {
         if (url) formData.govtIdUrl = url;
       }
 
-      // Prepare payload
+      // Prepare payload to match backend schema strictly
       const payload = {
         full_name: formData.fullName,
-        date_of_birth: formData.dateOfBirth,
+        date_of_birth: formData.dateOfBirth, // "YYYY-MM-DD"
         secondary_email: formData.secondaryEmail || null,
         address: formData.address,
         profile_photo_url: formData.profilePhotoUrl || null,
         govt_id_url: formData.govtIdUrl || null,
         linkedin_url: formData.linkedinUrl || null,
         github_username: formData.githubUsername || null,
-        skills: formData.skills,
-        education: formData.education,
+        skills: formData.skills, // Array of strings
+
+        // Backend expects a single education object? Taking the first one if multiple.
+        education: formData.education.length > 0 ? {
+          degree: formData.education[0].degree,
+          field: formData.education[0].institution // Mapping institution to field for now, or just sending institution if schema allows
+        } : null,
+
         career_preferences: {
-          preferred_roles: formData.preferredRoles,
-          target_lpa: formData.targetLpa ? parseInt(formData.targetLpa) : null,
+          roles_targeted: formData.preferredRoles, // Mapped from preferred_roles
+          min_target_lpa: formData.targetLpa ? parseInt(formData.targetLpa) : null, // Mapped from target_lpa
           preferred_locations: formData.preferredLocations,
-          work_preference: formData.workPreference,
-          other_preferences: formData.otherPreferences,
+          // Extra fields like work_preference might be ignored by backend, but safe to send
+          work_preference: formData.workPreference
         },
+
         api_keys: {
           gemini_ai_key: formData.apiKeys.geminiAiKey || null,
           linkedin_api_key: formData.apiKeys.linkedinApiKey || null,
@@ -166,6 +173,7 @@ export function OnboardingForm() {
           indeed_api_key: formData.apiKeys.indeedApiKey || null,
           gmail_api_key: formData.apiKeys.gmailApiKey || null,
         },
+        onboarding_completed: true
       };
 
       // Get current session
@@ -176,10 +184,10 @@ export function OnboardingForm() {
       }
 
       // Submit to backend
-      console.log("Submitting payload to teammate's microservice (placeholder):", payload);
+      // console.log("Submitting payload to teammate's microservice (placeholder):", payload);
 
-      // Simulate success
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { submitOnboardingData } = await import('@/lib/api-services');
+      await submitOnboardingData(payload, session.access_token);
 
       // Redirect to dashboard
       router.push('/dashboard');

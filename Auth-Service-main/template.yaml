@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Auth Service - FastAPI on AWS Lambda
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: python3.11
+    Architectures:
+      - x86_64
+
+Resources:
+  AuthServiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: main.handler
+      CodeUri: package/
+      Description: Auth Microservice for CareerAutomate
+      Environment:
+        Variables:
+          SUPABASE_URL: !Ref SupabaseUrl
+          SUPABASE_KEY: !Ref SupabaseKey
+          SECRET_KEY: !Ref SecretKey
+          ALGORITHM: HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+          FRONTEND_URL: !Ref FrontendUrl
+          # HOST_URL will be set manually after deployment or computed at runtime
+          MAIL_USERNAME: !Ref MailUsername
+          MAIL_PASSWORD: !Ref MailPassword
+      Events:
+        ApiRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+        ApiProxy:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+Parameters:
+  SupabaseUrl:
+    Type: String
+    Description: Supabase URL
+    Default: "https://sapmqweflhqfprkjoikk.supabase.co"
+  
+  SupabaseKey:
+    Type: String
+    Description: Supabase Service Role Key
+    NoEcho: true
+  
+  SecretKey:
+    Type: String
+    Description: JWT Secret Key
+    NoEcho: true
+    Default: "your_super_secret_key_here_123"
+  
+  FrontendUrl:
+    Type: String
+    Description: Frontend URL for redirects
+    Default: "https://career-automate.vercel.app"
+  
+  MailUsername:
+    Type: String
+    Description: Email username for sending OTPs
+    Default: "friendzone108108@gmail.com"
+  
+  MailPassword:
+    Type: String
+    Description: Email app password
+    NoEcho: true
+
+Outputs:
+  AuthServiceApi:
+    Description: "API Gateway endpoint URL - Use this as HOST_URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+  
+  AuthServiceFunction:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt AuthServiceFunction.Arn

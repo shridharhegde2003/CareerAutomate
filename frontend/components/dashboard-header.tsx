@@ -1,9 +1,8 @@
-// Shared header component with profile avatar and logout
+// frontend/components/dashboard-header.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -12,122 +11,102 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Bell, Search, LogOut, User, Settings } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-export function DashboardHeader() {
+interface DashboardHeaderProps {
+    title: string;
+    subtitle?: string;
+}
+
+export function DashboardHeader({ title, subtitle }: DashboardHeaderProps) {
     const router = useRouter();
-    const [userProfile, setUserProfile] = useState<any>(null);
-    const [unreadCount, setUnreadCount] = useState(0);
+    const [user, setUser] = useState<{ email: string; name: string } | null>(null);
 
     useEffect(() => {
-        fetchUserProfile();
-        fetchUnreadNotifications();
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                setUser({
+                    email: user.email || "user@example.com",
+                    name: user.user_metadata?.full_name || user.email?.split('@')[0] || "User",
+                });
+            }
+        };
+        getUser();
     }, []);
 
-    const fetchUserProfile = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('full_name, profile_photo_url')
-                .eq('id', user.id)
-                .single();
-
-            setUserProfile({
-                name: profile?.full_name || user.email?.split('@')[0] || 'User',
-                email: user.email,
-                photo: profile?.profile_photo_url,
-            });
-        } catch (error) {
-            console.error('Error fetching profile:', error);
-        }
-    };
-
-    const fetchUnreadNotifications = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const { count } = await supabase
-                .from('notifications')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', user.id)
-                .eq('is_read', false);
-
-            setUnreadCount(count || 0);
-        } catch (error) {
-            console.error('Error fetching notifications:', error);
-        }
-    };
-
     const handleLogout = async () => {
-        try {
-            await supabase.auth.signOut();
-            router.push('/');
-        } catch (error) {
-            console.error('Error logging out:', error);
-        }
-    };
-
-    const getInitials = (name: string) => {
-        return name
-            .split(' ')
-            .map(n => n[0])
-            .join('')
-            .toUpperCase()
-            .slice(0, 2);
+        await supabase.auth.signOut();
+        sessionStorage.removeItem("access_token");
+        router.push("/login");
     };
 
     return (
-        <div className="flex items-center justify-end gap-4 px-8 py-4 border-b">
-            {/* Notifications Bell */}
-            <button
-                onClick={() => router.push('/notifications')}
-                className="relative p-2 hover:bg-muted rounded-lg transition-colors"
-            >
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                        {unreadCount}
-                    </span>
+        <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-6">
+            <div>
+                <h1 className="text-xl font-bold text-slate-900 dark:text-white">{title}</h1>
+                {subtitle && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
                 )}
-            </button>
+            </div>
 
-            {/* Profile Dropdown */}
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <button className="focus:outline-none">
-                        <Avatar className="w-10 h-10 cursor-pointer ring-2 ring-offset-2 ring-primary/20 hover:ring-primary/40 transition-all">
-                            <AvatarImage src={userProfile?.photo} alt={userProfile?.name} />
-                            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                                {userProfile?.name ? getInitials(userProfile.name) : 'U'}
-                            </AvatarFallback>
-                        </Avatar>
-                    </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel>
-                        <div className="flex flex-col space-y-1">
-                            <p className="text-sm font-medium">{userProfile?.name || 'User'}</p>
-                            <p className="text-xs text-muted-foreground">{userProfile?.email}</p>
-                        </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => router.push('/settings')}>
-                        Profile Settings
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => router.push('/dashboard')}>
-                        Dashboard
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                        Log out
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
+            <div className="flex items-center gap-4">
+                {/* Search */}
+                <div className="relative hidden md:block">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                        type="text"
+                        placeholder="Search..."
+                        className="w-64 pl-10 h-10 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                    />
+                </div>
+
+                {/* Notifications */}
+                <Button variant="ghost" size="icon" className="relative">
+                    <Bell className="h-5 w-5 text-slate-500" />
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                </Button>
+
+                {/* Profile Dropdown */}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                            <Avatar className="h-10 w-10 ring-2 ring-blue-600/20">
+                                <AvatarImage src="" alt="User" />
+                                <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-semibold">
+                                    {user ? user.name.charAt(0).toUpperCase() : "U"}
+                                </AvatarFallback>
+                            </Avatar>
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-56" align="end" forceMount>
+                        <DropdownMenuLabel className="font-normal">
+                            <div className="flex flex-col space-y-1">
+                                <p className="text-sm font-medium">{user?.name || "Loading..."}</p>
+                                <p className="text-xs text-muted-foreground">{user?.email || "..."}</p>
+                            </div>
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => router.push("/settings")}>
+                            <User className="mr-2 h-4 w-4" />
+                            <span>Profile</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push("/settings")}>
+                            <Settings className="mr-2 h-4 w-4" />
+                            <span>Settings</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                            <LogOut className="mr-2 h-4 w-4" />
+                            <span>Log out</span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+        </header>
     );
 }
