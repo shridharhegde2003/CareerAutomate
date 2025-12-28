@@ -16,6 +16,7 @@ import { Bell, Search, LogOut, User, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { OnboardingService } from "@/services/onboarding";
 
 interface DashboardHeaderProps {
     title: string;
@@ -24,19 +25,42 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ title, subtitle }: DashboardHeaderProps) {
     const router = useRouter();
-    const [user, setUser] = useState<{ email: string; name: string } | null>(null);
+    const [user, setUser] = useState<{ email: string; name: string; photoUrl?: string } | null>(null);
 
     useEffect(() => {
-        const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
+        const loadProfile = async () => {
+            try {
+                // Get basic auth info for email
+                const { data: { user: authUser } } = await supabase.auth.getUser();
+                if (!authUser) return;
+
+                // specific loading logic
                 setUser({
-                    email: user.email || "user@example.com",
-                    name: user.user_metadata?.full_name || user.email?.split('@')[0] || "User",
+                    email: authUser.email || "",
+                    name: "Loading...",
                 });
+
+                // Fetch detailed profile
+                const profile = await OnboardingService.getProfile();
+
+                setUser({
+                    email: authUser.email || "user@example.com",
+                    name: profile?.full_name || authUser.user_metadata?.full_name || "User",
+                    photoUrl: profile?.profile_photo_url
+                });
+            } catch (error) {
+                console.error("Failed to load profile:", error);
+                // Fallback to local user data if service fails
+                const { data: { user: authUser } } = await supabase.auth.getUser();
+                if (authUser) {
+                    setUser({
+                        email: authUser.email || "user@example.com",
+                        name: authUser.user_metadata?.full_name || "User",
+                    });
+                }
             }
         };
-        getUser();
+        loadProfile();
     }, []);
 
     const handleLogout = async () => {
@@ -76,7 +100,7 @@ export function DashboardHeader({ title, subtitle }: DashboardHeaderProps) {
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                             <Avatar className="h-10 w-10 ring-2 ring-blue-600/20">
-                                <AvatarImage src="" alt="User" />
+                                <AvatarImage src={user?.photoUrl || ""} alt="User" />
                                 <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white font-semibold">
                                     {user ? user.name.charAt(0).toUpperCase() : "U"}
                                 </AvatarFallback>
@@ -91,10 +115,6 @@ export function DashboardHeader({ title, subtitle }: DashboardHeaderProps) {
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push("/settings")}>
-                            <User className="mr-2 h-4 w-4" />
-                            <span>Profile</span>
-                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => router.push("/settings")}>
                             <Settings className="mr-2 h-4 w-4" />
                             <span>Settings</span>

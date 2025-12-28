@@ -169,18 +169,29 @@ def google_callback(request: Request):
     Callback endpoint for Google OAuth. 
     """
     try:
+        # Check for error from provider
+        error = request.query_params.get("error")
+        if error:
+            return RedirectResponse(f"{FRONTEND_URL}/login?error=Sign%20in%20canceled")
+
         code = request.query_params.get("code")
         if not code:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Authorization code not found")
+            return RedirectResponse(f"{FRONTEND_URL}/login?error=Authorization%20code%20missing")
         
         session_data = supabase.auth.exchange_code_for_session({"auth_code": code})
         user = session_data.user
+        access_token = session_data.session.access_token
+        refresh_token = session_data.session.refresh_token
         
-        # Check if profile exists (Logic moved to frontend/onboarding service, but we still redirect)
-        return RedirectResponse(f"{FRONTEND_URL}/dashboard")
+        # Redirect to frontend dashboard with tokens
+        return RedirectResponse(
+            f"{FRONTEND_URL}/dashboard?access_token={access_token}&refresh_token={refresh_token}"
+        )
 
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        # Redirect with generic error
+        print(f"Auth Error: {str(e)}")
+        return RedirectResponse(f"{FRONTEND_URL}/login?error=Authentication%20failed")
 
 
 @router.get("/github/login")
@@ -200,14 +211,32 @@ def github_login():
 
 @router.get("/github/callback")
 def github_callback(request: Request):
+    """
+    Callback endpoint for GitHub OAuth. 
+    """
     try:
+        # Check for error from provider
+        error = request.query_params.get("error")
+        if error:
+            return RedirectResponse(f"{FRONTEND_URL}/login?error=Sign%20in%20canceled")
+
         code = request.query_params.get("code")
         if not code:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Authorization code not found")
+            return RedirectResponse(f"{FRONTEND_URL}/login?error=Authorization%20code%20missing")
         
         session_data = supabase.auth.exchange_code_for_session({"auth_code": code})
+        user = session_data.user
+        access_token = session_data.session.access_token
+        refresh_token = session_data.session.refresh_token
         
-        return RedirectResponse(f"{FRONTEND_URL}/dashboard")
+        # Redirect to frontend dashboard with tokens
+        return RedirectResponse(
+            f"{FRONTEND_URL}/dashboard?access_token={access_token}&refresh_token={refresh_token}"
+        )
 
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        print(f"Auth Error: {str(e)}")
+        return RedirectResponse(f"{FRONTEND_URL}/login?error=Authentication%20failed")
+
+
+

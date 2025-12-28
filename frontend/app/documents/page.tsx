@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DashboardNav } from "@/components/dashboard-nav";
+import { DashboardLayout } from "@/components/dashboard-layout";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { supabase } from "@/lib/supabase";
 import { Edit, Download, Trash2, Upload, FileText } from "lucide-react";
@@ -294,207 +294,201 @@ export default function DocumentsPage() {
     };
 
     return (
-        <div className="flex h-screen bg-background">
-            <DashboardNav />
+        <DashboardLayout>
+            <DashboardHeader title="Documents" subtitle="Manage your documents and certificates" />
 
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <DashboardHeader />
+            <div className="p-8">
+                <h1 className="text-3xl font-bold mb-8">Documents</h1>
 
-                <div className="flex-1 overflow-auto">
-                    <div className="p-8">
-                        <h1 className="text-3xl font-bold mb-8">Documents</h1>
+                <Tabs defaultValue="ai-resume" className="w-full">
+                    <TabsList>
+                        <TabsTrigger value="ai-resume">AI Resume Builder</TabsTrigger>
+                        <TabsTrigger value="certificates">Certificates & Documents</TabsTrigger>
+                    </TabsList>
 
-                        <Tabs defaultValue="ai-resume" className="w-full">
-                            <TabsList>
-                                <TabsTrigger value="ai-resume">AI Resume Builder</TabsTrigger>
-                                <TabsTrigger value="certificates">Certificates & Documents</TabsTrigger>
-                            </TabsList>
+                    <TabsContent value="ai-resume" className="mt-6">
+                        <p className="text-sm text-muted-foreground mb-6">
+                            You have {documents.length} resume(s) left out of 10
+                        </p>
 
-                            <TabsContent value="ai-resume" className="mt-6">
-                                <p className="text-sm text-muted-foreground mb-6">
-                                    You have {documents.length} resume(s) left out of 10
-                                </p>
-
-                                <div className="space-y-4">
-                                    {loading ? (
-                                        <div>Loading...</div>
-                                    ) : documents.length === 0 ? (
-                                        <Card>
-                                            <CardContent className="pt-6">
-                                                <p className="text-center text-muted-foreground py-8">
-                                                    No resumes yet. Create your first AI-generated resume!
-                                                </p>
-                                            </CardContent>
-                                        </Card>
-                                    ) : (
-                                        documents.map((doc) => (
-                                            <Card key={doc.id}>
-                                                <CardContent className="pt-6">
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                {getRoleBadge(doc.role)}
-                                                            </div>
-                                                            <h3 className="font-semibold text-lg">{doc.title}</h3>
-                                                            <p className="text-sm text-muted-foreground">
-                                                                Last updated: {new Date(doc.updated_at).toLocaleDateString()}
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex items-center gap-4">
-                                                            <Button variant="ghost" size="sm" className="gap-2">
-                                                                <Edit className="w-4 h-4" />
-                                                                Edit
-                                                            </Button>
-                                                            <Button variant="ghost" size="sm" className="gap-2">
-                                                                <Download className="w-4 h-4" />
-                                                                Download PDF
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
-                                        ))
-                                    )}
-
-                                    <Card className="mt-6">
+                        <div className="space-y-4">
+                            {loading ? (
+                                <div>Loading...</div>
+                            ) : documents.length === 0 ? (
+                                <Card>
+                                    <CardContent className="pt-6">
+                                        <p className="text-center text-muted-foreground py-8">
+                                            No resumes yet. Create your first AI-generated resume!
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                            ) : (
+                                documents.map((doc) => (
+                                    <Card key={doc.id}>
                                         <CardContent className="pt-6">
                                             <div className="flex items-center justify-between">
-                                                <div>
-                                                    <h3 className="font-semibold mb-1">Auto-Tailor for Next Job Search</h3>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        {getRoleBadge(doc.role)}
+                                                    </div>
+                                                    <h3 className="font-semibold text-lg">{doc.title}</h3>
                                                     <p className="text-sm text-muted-foreground">
-                                                        Automatically tailor your resume for each job application.
+                                                        Last updated: {new Date(doc.updated_at).toLocaleDateString()}
                                                     </p>
                                                 </div>
-                                                <Switch defaultChecked={false} />
+                                                <div className="flex items-center gap-4">
+                                                    <Button variant="ghost" size="sm" className="gap-2">
+                                                        <Edit className="w-4 h-4" />
+                                                        Edit
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" className="gap-2">
+                                                        <Download className="w-4 h-4" />
+                                                        Download PDF
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </CardContent>
                                     </Card>
+                                ))
+                            )}
 
-                                    {documents.length < 10 && (
-                                        <div className="mt-6 p-8 border-2 border-dashed rounded-lg text-center">
-                                            <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                                            <p className="text-muted-foreground mb-4">Create a new AI-powered resume</p>
-                                            <Button onClick={() => handleCreateResume('Software Engineer')}>
-                                                Create New Resume
-                                            </Button>
-                                            <p className="text-xs text-muted-foreground mt-2">
-                                                {/* TODO: AI-Service integration pending */}
-                                                Powered by AI (Coming Soon)
+                            <Card className="mt-6">
+                                <CardContent className="pt-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h3 className="font-semibold mb-1">Auto-Tailor for Next Job Search</h3>
+                                            <p className="text-sm text-muted-foreground">
+                                                Automatically tailor your resume for each job application.
                                             </p>
                                         </div>
-                                    )}
-                                </div>
-                            </TabsContent>
+                                        <Switch defaultChecked={false} />
+                                    </div>
+                                </CardContent>
+                            </Card>
 
-                            <TabsContent value="certificates" className="mt-6">
-                                {/* Upload Section */}
-                                <Card className="mb-6">
-                                    <CardContent className="pt-6">
-                                        <div className="space-y-4">
-                                            <div>
-                                                <Label htmlFor="doc-type">Document Type</Label>
-                                                <Select>
-                                                    <SelectTrigger id="doc-type">
-                                                        <SelectValue placeholder="Select document type" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {DOC_TYPES.map((type) => (
-                                                            <SelectItem key={type} value={type}>
-                                                                {type}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div>
-                                                <Label htmlFor="file-upload">Upload Document</Label>
-                                                <div className="flex gap-2 mt-2">
-                                                    <Input
-                                                        id="file-upload"
-                                                        type="file"
-                                                        accept=".pdf,.jpg,.jpeg,.png"
-                                                        onChange={(e) => {
-                                                            const select = document.getElementById('doc-type') as HTMLSelectElement;
-                                                            const docType = select?.value || 'Other';
-                                                            handleFileUpload(e, docType);
-                                                        }}
-                                                        disabled={uploading}
-                                                    />
-                                                    <Button disabled={uploading}>
-                                                        <Upload className="w-4 h-4 mr-2" />
-                                                        {uploading ? 'Uploading...' : 'Upload'}
-                                                    </Button>
-                                                </div>
-                                                <p className="text-xs text-muted-foreground mt-2">
-                                                    Allowed formats: PDF, JPG, PNG | Max size: 5MB
-                                                </p>
-                                            </div>
+                            {documents.length < 10 && (
+                                <div className="mt-6 p-8 border-2 border-dashed rounded-lg text-center">
+                                    <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                                    <p className="text-muted-foreground mb-4">Create a new AI-powered resume</p>
+                                    <Button onClick={() => handleCreateResume('Software Engineer')}>
+                                        Create New Resume
+                                    </Button>
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                        {/* TODO: AI-Service integration pending */}
+                                        Powered by AI (Coming Soon)
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="certificates" className="mt-6">
+                        {/* Upload Section */}
+                        <Card className="mb-6">
+                            <CardContent className="pt-6">
+                                <div className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="doc-type">Document Type</Label>
+                                        <Select>
+                                            <SelectTrigger id="doc-type">
+                                                <SelectValue placeholder="Select document type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {DOC_TYPES.map((type) => (
+                                                    <SelectItem key={type} value={type}>
+                                                        {type}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="file-upload">Upload Document</Label>
+                                        <div className="flex gap-2 mt-2">
+                                            <Input
+                                                id="file-upload"
+                                                type="file"
+                                                accept=".pdf,.jpg,.jpeg,.png"
+                                                onChange={(e) => {
+                                                    const select = document.getElementById('doc-type') as HTMLSelectElement;
+                                                    const docType = select?.value || 'Other';
+                                                    handleFileUpload(e, docType);
+                                                }}
+                                                disabled={uploading}
+                                            />
+                                            <Button disabled={uploading}>
+                                                <Upload className="w-4 h-4 mr-2" />
+                                                {uploading ? 'Uploading...' : 'Upload'}
+                                            </Button>
                                         </div>
+                                        <p className="text-xs text-muted-foreground mt-2">
+                                            Allowed formats: PDF, JPG, PNG | Max size: 5MB
+                                        </p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Documents List */}
+                        <div className="space-y-4">
+                            {certificates.length === 0 ? (
+                                <Card>
+                                    <CardContent className="pt-6">
+                                        <p className="text-center text-muted-foreground py-8">
+                                            No documents uploaded yet. Upload your certificates and academic documents above.
+                                        </p>
                                     </CardContent>
                                 </Card>
-
-                                {/* Documents List */}
-                                <div className="space-y-4">
-                                    {certificates.length === 0 ? (
-                                        <Card>
-                                            <CardContent className="pt-6">
-                                                <p className="text-center text-muted-foreground py-8">
-                                                    No documents uploaded yet. Upload your certificates and academic documents above.
-                                                </p>
-                                            </CardContent>
-                                        </Card>
-                                    ) : (
-                                        certificates.map((doc) => (
-                                            <Card key={doc.id}>
-                                                <CardContent className="pt-6">
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <Badge variant="outline">{doc.document_type}</Badge>
-                                                            </div>
-                                                            <h3 className="font-semibold">{doc.document_name}</h3>
-                                                            <p className="text-sm text-muted-foreground">
-                                                                {doc.file_name} • {formatFileSize(doc.file_size)} • Uploaded {new Date(doc.created_at).toLocaleDateString()}
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => {
-                                                                    setSelectedDoc(doc);
-                                                                    setNewFileName(doc.document_name);
-                                                                    setRenameDialogOpen(true);
-                                                                }}
-                                                            >
-                                                                <Edit className="w-4 h-4" />
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => handleDownload(doc)}
-                                                            >
-                                                                <Download className="w-4 h-4" />
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => handleDelete(doc)}
-                                                                className="text-red-600"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </Button>
-                                                        </div>
+                            ) : (
+                                certificates.map((doc) => (
+                                    <Card key={doc.id}>
+                                        <CardContent className="pt-6">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <Badge variant="outline">{doc.document_type}</Badge>
                                                     </div>
-                                                </CardContent>
-                                            </Card>
-                                        ))
-                                    )}
-                                </div>
-                            </TabsContent>
-                        </Tabs>
-                    </div>
-                </div>
+                                                    <h3 className="font-semibold">{doc.document_name}</h3>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {doc.file_name} • {formatFileSize(doc.file_size)} • Uploaded {new Date(doc.created_at).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            setSelectedDoc(doc);
+                                                            setNewFileName(doc.document_name);
+                                                            setRenameDialogOpen(true);
+                                                        }}
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleDownload(doc)}
+                                                    >
+                                                        <Download className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleDelete(doc)}
+                                                        className="text-red-600"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))
+                            )}
+                        </div>
+                    </TabsContent>
+                </Tabs>
             </div>
 
             {/* Rename Dialog */}
@@ -521,6 +515,6 @@ export default function DocumentsPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </DashboardLayout>
     );
 }

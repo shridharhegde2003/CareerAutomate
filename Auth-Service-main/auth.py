@@ -169,9 +169,14 @@ def google_callback(request: Request):
     Callback endpoint for Google OAuth. 
     """
     try:
+        # Check for error from provider
+        error = request.query_params.get("error")
+        if error:
+            return RedirectResponse(f"{FRONTEND_URL}/login?error=Sign%20in%20canceled")
+
         code = request.query_params.get("code")
         if not code:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Authorization code not found")
+            return RedirectResponse(f"{FRONTEND_URL}/login?error=Authorization%20code%20missing")
         
         session_data = supabase.auth.exchange_code_for_session({"auth_code": code})
         user = session_data.user
@@ -184,7 +189,9 @@ def google_callback(request: Request):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        # Redirect with generic error
+        print(f"Auth Error: {str(e)}")
+        return RedirectResponse(f"{FRONTEND_URL}/login?error=Authentication%20failed")
 
 
 @router.get("/github/login")
@@ -208,9 +215,14 @@ def github_callback(request: Request):
     Callback endpoint for GitHub OAuth. 
     """
     try:
+        # Check for error from provider
+        error = request.query_params.get("error")
+        if error:
+            return RedirectResponse(f"{FRONTEND_URL}/login?error=Sign%20in%20canceled")
+
         code = request.query_params.get("code")
         if not code:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Authorization code not found")
+            return RedirectResponse(f"{FRONTEND_URL}/login?error=Authorization%20code%20missing")
         
         session_data = supabase.auth.exchange_code_for_session({"auth_code": code})
         user = session_data.user
@@ -223,7 +235,8 @@ def github_callback(request: Request):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        print(f"Auth Error: {str(e)}")
+        return RedirectResponse(f"{FRONTEND_URL}/login?error=Authentication%20failed")
 
 
 
