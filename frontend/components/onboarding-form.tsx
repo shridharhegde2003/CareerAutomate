@@ -282,6 +282,58 @@ export function OnboardingForm() {
     checkOnboardingStatus();
   }, [router]);
 
+  // Restore form data from sessionStorage if returning from GitHub OAuth
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const isFromGitHubOAuth = params.has('github_connected') || params.has('github_error');
+
+      if (isFromGitHubOAuth) {
+        // Restore saved form data
+        const savedData = sessionStorage.getItem('onboarding_form_data');
+        const savedStep = sessionStorage.getItem('onboarding_current_step');
+
+        if (savedData) {
+          try {
+            const parsedData = JSON.parse(savedData);
+            // Note: File objects cannot be serialized, so profilePhoto and govtId will be null
+            // But the URLs are preserved
+            setFormData(prev => ({
+              ...prev,
+              ...parsedData,
+              profilePhoto: null, // File objects can't be restored
+              govtId: null
+            }));
+          } catch (e) {
+            console.error('Error restoring form data:', e);
+          }
+        }
+
+        if (savedStep) {
+          setCurrentStep(parseInt(savedStep, 10));
+        }
+
+        // Clear saved data after restoring
+        sessionStorage.removeItem('onboarding_form_data');
+        sessionStorage.removeItem('onboarding_current_step');
+      }
+    }
+  }, []);
+
+  // Function to save form data before external redirect (GitHub OAuth)
+  const saveFormDataForRedirect = () => {
+    if (typeof window !== 'undefined') {
+      // Create a serializable version of formData (excluding File objects)
+      const serializableData = {
+        ...formData,
+        profilePhoto: null,
+        govtId: null
+      };
+      sessionStorage.setItem('onboarding_form_data', JSON.stringify(serializableData));
+      sessionStorage.setItem('onboarding_current_step', currentStep.toString());
+    }
+  };
+
   const validateStep1 = (): boolean => {
     if (!formData.fullName.trim()) {
       setValidationError('Full Name is required');
@@ -471,11 +523,24 @@ export function OnboardingForm() {
       return null;
     }
 
-    const { data } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
+    // For private buckets (government-ids), use signed URL
+    // For public buckets (profile-photos), use public URL
+    if (bucket === 'government-ids') {
+      const { data, error: signedError } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
 
-    return data.publicUrl;
+      if (signedError || !data) {
+        console.error('Signed URL error:', signedError);
+        return null;
+      }
+      return data.signedUrl;
+    } else {
+      const { data } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(filePath);
+      return data.publicUrl;
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'profilePhoto' | 'govtId') => {
@@ -664,7 +729,7 @@ export function OnboardingForm() {
         {currentStep === 1 && <Step1Personal formData={formData} setFormData={setFormData} handleFileChange={handleFileChange} isUploading={isUploading} />}
         {currentStep === 2 && <Step2Academics formData={formData} setFormData={setFormData} />}
         {currentStep === 3 && <Step3Career formData={formData} setFormData={setFormData} />}
-        {currentStep === 4 && <Step4GitHub githubConnected={githubConnected} setGithubConnected={setGithubConnected} githubConnecting={githubConnecting} setGithubConnecting={setGithubConnecting} />}
+        {currentStep === 4 && <Step4GitHub githubConnected={githubConnected} setGithubConnected={setGithubConnected} githubConnecting={githubConnecting} setGithubConnecting={setGithubConnecting} onBeforeRedirect={saveFormDataForRedirect} />}
         {currentStep === 5 && <Step5APIKeys formData={formData} setFormData={setFormData} />}
         {currentStep === 6 && <Step6Review formData={formData} githubConnected={githubConnected} />}
 
@@ -1284,6 +1349,9 @@ function Step2Academics({ formData, setFormData }: any) {
 function Step3Career({ formData, setFormData }: any) {
   const roles = ["Software Engineer", "Data Scientist", "Product Manager", "UX/UI Designer", "DevOps Engineer", "Cybersecurity", "Machine Learning", "Blockchain Dev", "Others"];
 
+  // Local state for location input - allows typing commas and spaces freely
+  const [locationInput, setLocationInput] = useState(formData.preferredLocations.join(', '));
+
   const toggleRole = (role: string) => {
     setFormData({
       ...formData,
@@ -1311,8 +1379,9 @@ function Step3Career({ formData, setFormData }: any) {
     });
   };
 
-  const handleLocationChange = (value: string) => {
-    const locations = value.split(',').map(l => l.trim()).filter(l => l);
+  // Parse locations and save to formData when user leaves the field
+  const handleLocationBlur = () => {
+    const locations = locationInput.split(',').map((l: string) => l.trim()).filter((l: string) => l);
     setFormData({ ...formData, preferredLocations: locations });
   };
 
@@ -1356,8 +1425,9 @@ function Step3Career({ formData, setFormData }: any) {
           <Label htmlFor="locations">Preferred Job Locations (comma separated) *</Label>
           <Input
             id="locations"
-            value={formData.preferredLocations.join(', ')}
-            onChange={(e) => handleLocationChange(e.target.value)}
+            value={locationInput}
+            onChange={(e) => setLocationInput(e.target.value)}
+            onBlur={handleLocationBlur}
             placeholder="e.g., Bangalore, Hyderabad, Remote"
           />
         </div>
@@ -1416,11 +1486,12 @@ function Step3Career({ formData, setFormData }: any) {
   );
 }
 
-function Step4GitHub({ githubConnected, setGithubConnected, githubConnecting, setGithubConnecting }: {
+function Step4GitHub({ githubConnected, setGithubConnected, githubConnecting, setGithubConnecting, onBeforeRedirect }: {
   githubConnected: boolean;
   setGithubConnected: (value: boolean) => void;
   githubConnecting: boolean;
   setGithubConnecting: (value: boolean) => void;
+  onBeforeRedirect?: () => void;
 }) {
   const GITHUB_SYNC_SERVICE_URL = process.env.NEXT_PUBLIC_GITHUB_SYNC_SERVICE_URL;
 
@@ -1434,6 +1505,11 @@ function Step4GitHub({ githubConnected, setGithubConnected, githubConnecting, se
         console.error('No user logged in');
         setGithubConnecting(false);
         return;
+      }
+
+      // Save form data before redirecting to GitHub OAuth
+      if (onBeforeRedirect) {
+        onBeforeRedirect();
       }
 
       // Redirect to GitHub Sync Service OAuth flow with user_id and redirect_to for onboarding
