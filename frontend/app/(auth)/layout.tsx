@@ -1,6 +1,5 @@
 // frontend/app/(auth)/layout.tsx
 import Link from "next/link";
-import { Briefcase } from "lucide-react";
 
 export default function AuthLayout({
     children,
@@ -12,12 +11,11 @@ export default function AuthLayout({
             {/* Header with branding */}
             <header className="w-full py-6 px-8">
                 <Link href="/" className="flex items-center gap-2 w-fit">
-                    <div className="p-2 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg">
-                        <Briefcase className="h-6 w-6 text-white" />
-                    </div>
-                    <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                        CareerAutomate
-                    </span>
+                    <img
+                        src="https://i.postimg.cc/1RvV7gcX/CA_logo_banner_transparent.png"
+                        alt="CareerAutomate"
+                        className="h-10 object-contain"
+                    />
                 </Link>
             </header>
 

@@ -45,16 +45,33 @@ function DashboardContent() {
             const accessToken = searchParams.get('access_token');
             const refreshToken = searchParams.get('refresh_token');
 
+            // 1. Handle OAuth Callback / Token in URL
             if (accessToken) {
                 sessionStorage.setItem('access_token', accessToken);
                 if (refreshToken) sessionStorage.setItem('refresh_token', refreshToken);
 
-                await supabase.auth.setSession({
+                const { error } = await supabase.auth.setSession({
                     access_token: accessToken,
                     refresh_token: refreshToken || '',
                 });
 
+                if (error) {
+                    console.error("Error setting session from params:", error);
+                    router.push('/login');
+                    return;
+                }
+
+                // Clean URL
                 router.replace('/dashboard');
+            }
+
+            // 2. Check Authentication State
+            const { data: { user } } = await supabase.auth.getUser();
+
+            // If strictly no user AND no access token was just processed
+            if (!user && !accessToken) {
+                router.push('/login');
+                return;
             }
 
             // Check Onboarding Status & Fetch Data

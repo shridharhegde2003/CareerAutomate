@@ -39,6 +39,8 @@ interface CertificateDocument {
     file_name: string;
     file_size: number | null;
     created_at: string;
+    verification_status: 'pending' | 'approved' | 'rejected';
+    rejection_reason?: string | null;
 }
 
 const DOC_TYPES = [
@@ -293,6 +295,29 @@ export default function DocumentsPage() {
         return mb >= 1 ? `${mb.toFixed(2)} MB` : `${(bytes / 1024).toFixed(2)} KB`;
     };
 
+    const getVerificationBadge = (status: 'pending' | 'approved' | 'rejected') => {
+        switch (status) {
+            case 'approved':
+                return (
+                    <Badge className="bg-green-100 text-green-700 gap-1">
+                        <span>✓</span> Verified
+                    </Badge>
+                );
+            case 'rejected':
+                return (
+                    <Badge className="bg-red-100 text-red-700 gap-1">
+                        <span>✗</span> Rejected
+                    </Badge>
+                );
+            default:
+                return (
+                    <Badge className="bg-yellow-100 text-yellow-700 gap-1">
+                        <span>⏳</span> Pending
+                    </Badge>
+                );
+        }
+    };
+
     return (
         <DashboardLayout>
             <DashboardHeader title="Documents" subtitle="Manage your documents and certificates" />
@@ -447,11 +472,17 @@ export default function DocumentsPage() {
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <Badge variant="outline">{doc.document_type}</Badge>
+                                                        {getVerificationBadge(doc.verification_status || 'pending')}
                                                     </div>
                                                     <h3 className="font-semibold">{doc.document_name}</h3>
                                                     <p className="text-sm text-muted-foreground">
                                                         {doc.file_name} • {formatFileSize(doc.file_size)} • Uploaded {new Date(doc.created_at).toLocaleDateString()}
                                                     </p>
+                                                    {doc.verification_status === 'rejected' && doc.rejection_reason && (
+                                                        <p className="text-sm text-red-600 mt-1">
+                                                            Reason: {doc.rejection_reason}
+                                                        </p>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <Button

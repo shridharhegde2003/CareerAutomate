@@ -34,11 +34,11 @@ function LoginForm() {
 
   // LOGIC PRESERVED EXACTLY AS BEFORE
   const handleGoogleSignIn = () => {
-    window.location.href = `${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'http://127.0.0.1:8000'}/auth/google/login`;
+    window.location.href = `${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL}/auth/google/login`;
   };
 
   const handleGitHubSignIn = () => {
-    window.location.href = `${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'http://127.0.0.1:8000'}/auth/github/login`;
+    window.location.href = `${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL}/auth/github/login`;
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -47,7 +47,7 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL || 'http://127.0.0.1:8000'}/auth/login`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_AUTH_SERVICE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

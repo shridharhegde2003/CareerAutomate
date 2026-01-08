@@ -1,7 +1,8 @@
 // frontend/app/reports/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,13 +10,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { supabase } from "@/lib/supabase";
 import { Download, FileUp } from "lucide-react";
 
 // TODO: Import analytics service functions when microservices are implemented
 // import { getApplicationAnalytics, getSkillTrends, analyzeResumePerformance } from "@/lib/api-services";
 
 export default function ReportsPage() {
+    const router = useRouter();
     const [dateRange, setDateRange] = useState("Last 30 Days");
+
+    useEffect(() => {
+        const checkAuth = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                router.push('/login');
+                return;
+            }
+        };
+        checkAuth();
+    }, [router]);
 
     // TODO: Fetch real analytics data from Analytics-Service (port 8003)
     // useEffect(() => {

@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 import { ShaderAnimation } from "@/components/ui/shader-animation"
+import Link from "next/link"
 
 export function HeroSection() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
@@ -103,19 +104,23 @@ export function HeroSection() {
 
         {/* Buttons - static position */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center relative z-20">
-          <Button
-            size="lg"
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-8 py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
-          >
-            Start Now
-          </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            className="border-2 rounded-lg px-8 py-6 text-lg font-semibold hover:bg-secondary bg-transparent"
-          >
-            Log In
-          </Button>
+          <Link href="/signup">
+            <Button
+              size="lg"
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-8 py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+            >
+              Start Now
+            </Button>
+          </Link>
+          <Link href="/login">
+            <Button
+              variant="outline"
+              size="lg"
+              className="border-2 rounded-lg px-8 py-6 text-lg font-semibold hover:bg-secondary bg-transparent"
+            >
+              Log In
+            </Button>
+          </Link>
         </div>
 
         {/* Hero image - professional climbing stairs */}

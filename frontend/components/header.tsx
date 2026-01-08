@@ -22,10 +22,11 @@ export function Header() {
     <header className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">C</span>
-          </div>
-          <span className="font-bold text-xl hidden sm:inline-block">CareerAutoMate</span>
+          <img
+            src="https://i.postimg.cc/1RvV7gcX/CA_logo_banner_transparent.png"
+            alt="CareerAutomate"
+            className="h-8 object-contain"
+          />
         </div>
 
         <button

@@ -3,71 +3,129 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { DashboardHeader } from "@/components/dashboard-header";
-import { Edit2, Trash2 } from "lucide-react";
-import { OnboardingService, UserProfile as ServiceUserProfile } from "@/services/onboarding";
+import { supabase } from "@/lib/supabase";
+import { Edit2, Save, X, Plus, Trash2, Github, Linkedin, Mail, MapPin, Calendar, GraduationCap, Briefcase, Key, User } from "lucide-react";
 
-interface UserProfile extends Omit<ServiceUserProfile, 'id' | 'onboarding_completed' | 'profile_photo_url'> {
-    api_keys: any;
-    phone_number?: string;
+// Degree type options (same as onboarding form)
+const DEGREE_TYPES = [
+    { value: '10th', label: '10th Standard / SSLC' },
+    { value: '12th', label: '12th Standard / PUC / HSC' },
+    { value: 'diploma', label: 'Diploma' },
+    { value: 'bachelor', label: "Bachelor's Degree" },
+    { value: 'master', label: "Master's Degree" },
+    { value: 'phd', label: 'PhD / Doctorate' },
+];
+
+interface Education {
+    degree_type?: string;
+    degree_name?: string;
+    institution?: string;
+    grade_type?: 'percentage' | 'cgpa';
+    obtained_marks?: string;
+    total_marks?: string;
+    obtained_cgpa?: string;
+    max_cgpa?: string;
+    year_of_completion?: string;
+    percentage?: string;
+    // Legacy fields
+    degree?: string;
+    field_of_study?: string;
+    graduation_year?: string;
+}
+
+interface CareerPreferences {
+    roles_targeted?: string[];
+    preferred_roles?: string[];
+    min_target_lpa?: number;
+    target_lpa?: string;
+    preferred_locations?: string[];
+    work_preference?: string[];
+    other_preferences?: string[];
+}
+
+interface ApiKeys {
+    gemini_ai_key?: string;
+    linkedin_api_key?: string;
+    naukri_api_key?: string;
+    indeed_api_key?: string;
+    gmail_api_key?: string;
+}
+
+interface UserProfile {
+    id?: string;
+    full_name?: string;
+    date_of_birth?: string;
+    secondary_email?: string;
+    address?: string;
+    linkedin_url?: string;
+    github_username?: string;
+    skills?: string[];
+    education?: Education[];
+    career_preferences?: CareerPreferences;
+    api_keys?: ApiKeys;
+    profile_photo_url?: string;
+    govt_id_url?: string;
+    onboarding_completed?: boolean;
 }
 
 export default function SettingsPage() {
     const router = useRouter();
-    const [profile, setProfile] = useState<UserProfile>({
-        full_name: '',
-        date_of_birth: '',
-        secondary_email: '',
-        address: '',
-        linkedin_url: '',
-        github_username: '',
-        skills: [],
-        education: [],
-        career_preferences: {},
-        api_keys: {},
-    });
+    const [profile, setProfile] = useState<UserProfile>({});
+    const [originalProfile, setOriginalProfile] = useState<UserProfile>({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [editMode, setEditMode] = useState({
         personal: false,
         academic: false,
+        skills: false,
         career: false,
         apiKeys: false,
     });
+    const [newSkill, setNewSkill] = useState('');
+    const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     useEffect(() => {
+        checkAuth();
         fetchProfile();
     }, []);
 
+    const checkAuth = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            router.push('/login');
+            return;
+        }
+    };
+
     const fetchProfile = async () => {
         try {
-            const data = await OnboardingService.getProfile();
-            if (!data) {
-                // Not onboarded?
-                return;
-            }
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
 
-            setProfile({
-                full_name: data.full_name || '',
-                date_of_birth: data.date_of_birth || '',
-                secondary_email: data.secondary_email || '',
-                // phone_number: data.phone_number, // Not in interface yet, add if needed or map from other field?
-                address: data.address || '',
-                linkedin_url: data.linkedin_url || '',
-                github_username: data.github_username || '',
-                skills: data.skills || [],
-                education: data.education || [],
-                career_preferences: data.career_preferences || {},
-                api_keys: (data as any).api_keys || {},
-            });
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (error && error.code !== 'PGRST116') throw error;
+
+            if (data) {
+                setProfile(data);
+                setOriginalProfile(data);
+            }
         } catch (error) {
             console.error('Error fetching profile:', error);
+            setMessage({ type: 'error', text: 'Failed to load profile data' });
         } finally {
             setLoading(false);
         }
@@ -75,23 +133,103 @@ export default function SettingsPage() {
 
     const handleSave = async (section: string) => {
         setSaving(true);
-        try {
-            // Only send fields relevant to the section to avoid overwriting with stale data if necessary
-            // For now, sending the whole profile is fine or we can construct partial
-            // OnboardingService.updateProfile takes Partial<UserProfile>
-            await OnboardingService.updateProfile({
-                ...profile,
-                // Ensure date_of_birth is mapped if backend expects snake_case (it does)
-            });
+        setMessage(null);
 
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                router.push('/login');
+                return;
+            }
+
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    ...profile,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id);
+
+            if (error) throw error;
+
+            setOriginalProfile(profile);
             setEditMode({ ...editMode, [section]: false });
-            alert('Profile updated successfully!');
+            setMessage({ type: 'success', text: 'Profile updated successfully!' });
         } catch (error) {
             console.error('Error saving profile:', error);
-            alert('Error saving profile. Please try again.');
+            setMessage({ type: 'error', text: 'Failed to save profile. Please try again.' });
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleCancel = (section: string) => {
+        setProfile(originalProfile);
+        setEditMode({ ...editMode, [section]: false });
+    };
+
+    const addSkill = () => {
+        if (newSkill.trim() && !profile.skills?.includes(newSkill.trim())) {
+            setProfile({
+                ...profile,
+                skills: [...(profile.skills || []), newSkill.trim()]
+            });
+            setNewSkill('');
+        }
+    };
+
+    const removeSkill = (index: number) => {
+        const updated = [...(profile.skills || [])];
+        updated.splice(index, 1);
+        setProfile({ ...profile, skills: updated });
+    };
+
+    const updateCareerPreference = (field: string, value: any) => {
+        setProfile({
+            ...profile,
+            career_preferences: {
+                ...profile.career_preferences,
+                [field]: value
+            }
+        });
+    };
+
+    const updateApiKey = (field: string, value: string) => {
+        setProfile({
+            ...profile,
+            api_keys: {
+                ...profile.api_keys,
+                [field]: value
+            }
+        });
+    };
+
+    // Helper to format date for display
+    const formatDate = (dateStr?: string) => {
+        if (!dateStr) return 'Not set';
+        try {
+            return new Date(dateStr).toLocaleDateString('en-IN', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        } catch {
+            return dateStr;
+        }
+    };
+
+    // Get roles from career preferences
+    const getRoles = () => {
+        return profile.career_preferences?.roles_targeted ||
+            profile.career_preferences?.preferred_roles ||
+            [];
+    };
+
+    // Get target LPA
+    const getTargetLpa = () => {
+        return profile.career_preferences?.min_target_lpa?.toString() ||
+            profile.career_preferences?.target_lpa ||
+            '';
     };
 
     if (loading) {
@@ -109,327 +247,493 @@ export default function SettingsPage() {
 
     return (
         <DashboardLayout>
-            <DashboardHeader title="Profile" subtitle="Manage your account settings and preferences" />
+            <DashboardHeader title="Profile Settings" subtitle="View and manage your account settings and preferences" />
 
             <div className="p-6">
-                <div className="space-y-6 max-w-4xl">
+                {/* Status Message */}
+                {message && (
+                    <div className={`mb-6 p-4 rounded-lg flex items-center justify-between ${message.type === 'success'
+                            ? 'bg-green-50 border border-green-200 text-green-700'
+                            : 'bg-red-50 border border-red-200 text-red-700'
+                        }`}>
+                        <span>{message.text}</span>
+                        <button onClick={() => setMessage(null)} className="text-gray-500 hover:text-gray-700">×</button>
+                    </div>
+                )}
 
-                    <div className="space-y-6 max-w-4xl">
-                        {/* Personal Details */}
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
+                <div className="space-y-6 max-w-4xl">
+                    {/* Personal Details */}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <User className="w-5 h-5 text-blue-600" />
                                     <CardTitle>Personal Details</CardTitle>
-                                    {!editMode.personal ? (
+                                </div>
+                                {!editMode.personal ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setEditMode({ ...editMode, personal: true })}
+                                    >
+                                        <Edit2 className="w-4 h-4 mr-1" /> Edit
+                                    </Button>
+                                ) : (
+                                    <div className="flex gap-2">
                                         <Button
-                                            variant="default"
+                                            variant="outline"
                                             size="sm"
-                                            onClick={() => setEditMode({ ...editMode, personal: true })}
+                                            onClick={() => handleCancel('personal')}
                                         >
-                                            Edit
+                                            <X className="w-4 h-4 mr-1" /> Cancel
                                         </Button>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setEditMode({ ...editMode, personal: false });
-                                                    fetchProfile();
-                                                }}
-                                            >
-                                                Cancel
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleSave('personal')}
-                                                disabled={saving}
-                                            >
-                                                Save
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <CardContent className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Full Name (Cannot be edited)</Label>
-                                    <Input value={profile.full_name} disabled />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Email Address</Label>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleSave('personal')}
+                                            disabled={saving}
+                                        >
+                                            <Save className="w-4 h-4 mr-1" /> Save
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                    <User className="w-4 h-4" /> Full Name
+                                </Label>
+                                <Input
+                                    value={profile.full_name || ''}
+                                    disabled
+                                    className="bg-muted"
+                                />
+                                <p className="text-xs text-muted-foreground">Name cannot be changed</p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                    <Mail className="w-4 h-4" /> Secondary Email
+                                </Label>
+                                <Input
+                                    type="email"
+                                    value={profile.secondary_email || ''}
+                                    onChange={(e) => setProfile({ ...profile, secondary_email: e.target.value })}
+                                    disabled={!editMode.personal}
+                                    placeholder="secondary@example.com"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                    <Calendar className="w-4 h-4" /> Date of Birth
+                                </Label>
+                                {editMode.personal ? (
                                     <Input
-                                        value={profile.secondary_email || ''}
-                                        onChange={(e) => setProfile({ ...profile, secondary_email: e.target.value })}
-                                        disabled={!editMode.personal}
-                                        placeholder="john@example.com"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Date of Birth (dd/mm/yyyy)</Label>
-                                    <Input
+                                        type="date"
                                         value={profile.date_of_birth || ''}
                                         onChange={(e) => setProfile({ ...profile, date_of_birth: e.target.value })}
-                                        disabled={!editMode.personal}
+                                        max={new Date().toISOString().split('T')[0]}
                                     />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Phone Number</Label>
-                                    <Input
-                                        value={profile.phone_number || ''}
-                                        onChange={(e) => setProfile({ ...profile, phone_number: e.target.value })}
-                                        disabled={!editMode.personal}
-                                        placeholder="+1234567890"
-                                    />
-                                </div>
-                                <div className="space-y-2 col-span-2">
-                                    <Label>Mailing Address</Label>
-                                    <Input
-                                        value={profile.address || ''}
-                                        onChange={(e) => setProfile({ ...profile, address: e.target.value })}
-                                        disabled={!editMode.personal}
-                                        placeholder="San Francisco, CA"
-                                    />
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Academic Details */}
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <CardTitle>Academic Details</CardTitle>
-                                    {!editMode.academic ? (
-                                        <Button
-                                            variant="default"
-                                            size="sm"
-                                            onClick={() => setEditMode({ ...editMode, academic: true })}
-                                        >
-                                            Edit
-                                        </Button>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setEditMode({ ...editMode, academic: false });
-                                                    fetchProfile();
-                                                }}
-                                            >
-                                                Cancel
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleSave('academic')}
-                                                disabled={saving}
-                                            >
-                                                Save
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                {profile.education && profile.education.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {profile.education.map((edu: any, idx: number) => (
-                                            <div key={idx} className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
-                                                <div className="space-y-2">
-                                                    <Label>University</Label>
-                                                    <Input value={edu.institution || ''} disabled={!editMode.academic} />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label>Degree</Label>
-                                                    <Input value={edu.degree || ''} disabled={!editMode.academic} />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label>Specialization</Label>
-                                                    <Input value={edu.field_of_study || ''} disabled={!editMode.academic} />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label>Year of Graduation</Label>
-                                                    <Input value={edu.graduation_year || ''} disabled={!editMode.academic} />
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
                                 ) : (
-                                    <p className="text-muted-foreground">No education details found</p>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        {/* Career Preferences */}
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <CardTitle>Career Preferences</CardTitle>
-                                    {!editMode.career ? (
-                                        <Button
-                                            variant="default"
-                                            size="sm"
-                                            onClick={() => setEditMode({ ...editMode, career: true })}
-                                        >
-                                            Edit
-                                        </Button>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setEditMode({ ...editMode, career: false });
-                                                    fetchProfile();
-                                                }}
-                                            >
-                                                Cancel
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleSave('career')}
-                                                disabled={saving}
-                                            >
-                                                Save
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardHeader>
-                            <CardContent className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Job Titles</Label>
                                     <Input
-                                        value={profile.career_preferences?.preferred_roles?.join(', ') || ''}
-                                        disabled={!editMode.career}
+                                        value={formatDate(profile.date_of_birth)}
+                                        disabled
+                                    />
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                    <MapPin className="w-4 h-4" /> Address
+                                </Label>
+                                <Input
+                                    value={profile.address || ''}
+                                    onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+                                    disabled={!editMode.personal}
+                                    placeholder="City, State, Country"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                    <Linkedin className="w-4 h-4" /> LinkedIn URL
+                                </Label>
+                                <Input
+                                    value={profile.linkedin_url || ''}
+                                    onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })}
+                                    disabled={!editMode.personal}
+                                    placeholder="https://linkedin.com/in/yourprofile"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                    <Github className="w-4 h-4" /> GitHub Username
+                                </Label>
+                                <Input
+                                    value={profile.github_username || ''}
+                                    onChange={(e) => setProfile({ ...profile, github_username: e.target.value })}
+                                    disabled={!editMode.personal}
+                                    placeholder="yourusername"
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Skills */}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <CardTitle>Skills</CardTitle>
+                                {!editMode.skills ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setEditMode({ ...editMode, skills: true })}
+                                    >
+                                        <Edit2 className="w-4 h-4 mr-1" /> Edit
+                                    </Button>
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleCancel('skills')}
+                                        >
+                                            <X className="w-4 h-4 mr-1" /> Cancel
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleSave('skills')}
+                                            disabled={saving}
+                                        >
+                                            <Save className="w-4 h-4 mr-1" /> Save
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {editMode.skills && (
+                                <div className="flex gap-2 mb-4">
+                                    <Input
+                                        value={newSkill}
+                                        onChange={(e) => setNewSkill(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}
+                                        placeholder="Add a skill..."
+                                    />
+                                    <Button onClick={addSkill} type="button">
+                                        <Plus className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            )}
+                            <div className="flex flex-wrap gap-2">
+                                {profile.skills && profile.skills.length > 0 ? (
+                                    profile.skills.map((skill, idx) => (
+                                        <Badge
+                                            key={idx}
+                                            variant="secondary"
+                                            className="px-3 py-1 text-sm flex items-center gap-2"
+                                        >
+                                            {skill}
+                                            {editMode.skills && (
+                                                <button
+                                                    onClick={() => removeSkill(idx)}
+                                                    className="text-red-500 hover:text-red-700"
+                                                >
+                                                    ×
+                                                </button>
+                                            )}
+                                        </Badge>
+                                    ))
+                                ) : (
+                                    <p className="text-muted-foreground">No skills added yet</p>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Academic Details */}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <GraduationCap className="w-5 h-5 text-green-600" />
+                                    <CardTitle>Education</CardTitle>
+                                </div>
+                            </div>
+                            <CardDescription>Your educational qualifications</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {profile.education && profile.education.length > 0 ? (
+                                <div className="space-y-4">
+                                    {profile.education.map((edu, idx) => (
+                                        <div key={idx} className="p-4 bg-muted/50 rounded-lg">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h4 className="font-medium">
+                                                        {edu.degree_name || edu.degree || 'Degree'}
+                                                        {edu.degree_type && ` (${edu.degree_type})`}
+                                                    </h4>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {edu.institution || edu.field_of_study || 'Institution'}
+                                                    </p>
+                                                </div>
+                                                {(edu.year_of_completion || edu.graduation_year) && (
+                                                    <Badge variant="outline">
+                                                        {edu.year_of_completion || edu.graduation_year}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            {/* Grade Display */}
+                                            {edu.grade_type === 'percentage' && edu.percentage && (
+                                                <p className="text-sm text-green-600 mt-2">
+                                                    Percentage: {edu.percentage}%
+                                                </p>
+                                            )}
+                                            {edu.grade_type === 'cgpa' && edu.obtained_cgpa && (
+                                                <p className="text-sm text-green-600 mt-2">
+                                                    CGPA: {edu.obtained_cgpa} / {edu.max_cgpa || '10'}
+                                                </p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-muted-foreground">No education details found. Complete your onboarding to add educational qualifications.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Career Preferences */}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Briefcase className="w-5 h-5 text-purple-600" />
+                                    <CardTitle>Career Preferences</CardTitle>
+                                </div>
+                                {!editMode.career ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setEditMode({ ...editMode, career: true })}
+                                    >
+                                        <Edit2 className="w-4 h-4 mr-1" /> Edit
+                                    </Button>
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleCancel('career')}
+                                        >
+                                            <X className="w-4 h-4 mr-1" /> Cancel
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleSave('career')}
+                                            disabled={saving}
+                                        >
+                                            <Save className="w-4 h-4 mr-1" /> Save
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Preferred Job Roles</Label>
+                                {editMode.career ? (
+                                    <Input
+                                        value={getRoles().join(', ')}
+                                        onChange={(e) => updateCareerPreference('roles_targeted', e.target.value.split(',').map(s => s.trim()).filter(s => s))}
                                         placeholder="Software Engineer, Data Analyst"
                                     />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Job Type</Label>
+                                ) : (
+                                    <div className="flex flex-wrap gap-1">
+                                        {getRoles().length > 0 ? (
+                                            getRoles().map((role, idx) => (
+                                                <Badge key={idx} variant="secondary">{role}</Badge>
+                                            ))
+                                        ) : (
+                                            <span className="text-muted-foreground">Not set</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Target LPA (in Lakhs)</Label>
+                                <Input
+                                    type="number"
+                                    value={getTargetLpa()}
+                                    onChange={(e) => updateCareerPreference('min_target_lpa', parseInt(e.target.value) || 0)}
+                                    disabled={!editMode.career}
+                                    placeholder="15"
+                                    min="1"
+                                    max="200"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Preferred Locations</Label>
+                                {editMode.career ? (
                                     <Input
-                                        value={profile.career_preferences?.work_preference || ''}
-                                        disabled={!editMode.career}
-                                        placeholder="Full-time"
+                                        value={(profile.career_preferences?.preferred_locations || []).join(', ')}
+                                        onChange={(e) => updateCareerPreference('preferred_locations', e.target.value.split(',').map(s => s.trim()).filter(s => s))}
+                                        placeholder="Bangalore, Remote"
                                     />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Desired Salary</Label>
+                                ) : (
+                                    <div className="flex flex-wrap gap-1">
+                                        {profile.career_preferences?.preferred_locations?.length ? (
+                                            profile.career_preferences.preferred_locations.map((loc, idx) => (
+                                                <Badge key={idx} variant="outline">{loc}</Badge>
+                                            ))
+                                        ) : (
+                                            <span className="text-muted-foreground">Not set</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Work Mode Preference</Label>
+                                {editMode.career ? (
                                     <Input
-                                        value={profile.career_preferences?.target_lpa || ''}
-                                        disabled={!editMode.career}
-                                        placeholder="$100,000 - $150,000"
+                                        value={(profile.career_preferences?.work_preference || []).join(', ')}
+                                        onChange={(e) => updateCareerPreference('work_preference', e.target.value.split(',').map(s => s.trim()).filter(s => s))}
+                                        placeholder="Remote, Hybrid, In-office"
                                     />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Work Location</Label>
-                                    <Input
-                                        value={profile.career_preferences?.preferred_locations?.join(', ') || ''}
-                                        disabled={!editMode.career}
-                                        placeholder="Remote, San Francisco Area"
-                                    />
-                                </div>
-                                <div className="space-y-2 col-span-2">
-                                    <Label>Preferred Industry</Label>
-                                    <Textarea
-                                        value={profile.career_preferences?.other_preferences || ''}
-                                        disabled={!editMode.career}
-                                        placeholder="Technology, Healthcare, Finance"
-                                    />
-                                </div>
-                            </CardContent>
-                        </Card>
+                                ) : (
+                                    <div className="flex flex-wrap gap-1">
+                                        {profile.career_preferences?.work_preference?.length ? (
+                                            profile.career_preferences.work_preference.map((pref, idx) => (
+                                                <Badge key={idx} variant="outline">{pref}</Badge>
+                                            ))
+                                        ) : (
+                                            <span className="text-muted-foreground">Not set</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
 
-                        {/* API Keys */}
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
+                    {/* API Keys */}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Key className="w-5 h-5 text-orange-600" />
                                     <CardTitle>API Keys</CardTitle>
-                                    {!editMode.apiKeys ? (
+                                </div>
+                                {!editMode.apiKeys ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setEditMode({ ...editMode, apiKeys: true })}
+                                    >
+                                        <Edit2 className="w-4 h-4 mr-1" /> Edit
+                                    </Button>
+                                ) : (
+                                    <div className="flex gap-2">
                                         <Button
-                                            variant="default"
+                                            variant="outline"
                                             size="sm"
-                                            onClick={() => setEditMode({ ...editMode, apiKeys: true })}
+                                            onClick={() => handleCancel('apiKeys')}
                                         >
-                                            Edit Connect
+                                            <X className="w-4 h-4 mr-1" /> Cancel
                                         </Button>
-                                    ) : (
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setEditMode({ ...editMode, apiKeys: false });
-                                                    fetchProfile();
-                                                }}
-                                            >
-                                                Cancel
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleSave('apiKeys')}
-                                                disabled={saving}
-                                            >
-                                                Save
-                                            </Button>
-                                        </div>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleSave('apiKeys')}
+                                            disabled={saving}
+                                        >
+                                            <Save className="w-4 h-4 mr-1" /> Save
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                            <CardDescription>Manage your API keys for AI and automation features</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>Gemini AI Key</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="password"
+                                        value={profile.api_keys?.gemini_ai_key || ''}
+                                        onChange={(e) => updateApiKey('gemini_ai_key', e.target.value)}
+                                        disabled={!editMode.apiKeys}
+                                        placeholder={profile.api_keys?.gemini_ai_key ? '••••••••••••' : 'Not set'}
+                                    />
+                                    {profile.api_keys?.gemini_ai_key && (
+                                        <Badge variant="secondary" className="bg-green-100 text-green-700">Active</Badge>
                                     )}
                                 </div>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label>GitHub API Key</Label>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            type="password"
-                                            value={profile.api_keys?.github || ''}
-                                            disabled={!editMode.apiKeys}
-                                            placeholder="ghp_...****************"
-                                        />
-                                        <Button variant="ghost" size="sm">
-                                            <Edit2 className="w-4 h-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="sm" className="text-red-600">
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>LinkedIn API Key (Optional)</Label>
+                                <Input
+                                    type="password"
+                                    value={profile.api_keys?.linkedin_api_key || ''}
+                                    onChange={(e) => updateApiKey('linkedin_api_key', e.target.value)}
+                                    disabled={!editMode.apiKeys}
+                                    placeholder={profile.api_keys?.linkedin_api_key ? '••••••••••••' : 'Not set'}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Naukri API Key (Optional)</Label>
+                                <Input
+                                    type="password"
+                                    value={profile.api_keys?.naukri_api_key || ''}
+                                    onChange={(e) => updateApiKey('naukri_api_key', e.target.value)}
+                                    disabled={!editMode.apiKeys}
+                                    placeholder={profile.api_keys?.naukri_api_key ? '••••••••••••' : 'Not set'}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
 
-                        {/* Social Account Connections */}
-                        <Card className="border-0 shadow-sm">
-                            <CardHeader>
-                                <CardTitle>Social Account Connections</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-black rounded flex items-center justify-center text-white font-bold">
-                                            G
-                                        </div>
-                                        <div>
-                                            <p className="font-semibold">GitHub</p>
-                                            <p className="text-sm text-muted-foreground">{profile.github_username || 'Not connected'}</p>
-                                        </div>
+                    {/* Connected Accounts */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Connected Accounts</CardTitle>
+                            <CardDescription>Manage your connected social accounts</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-black rounded flex items-center justify-center">
+                                        <Github className="w-5 h-5 text-white" />
                                     </div>
-                                    <Button variant="outline">Reconnect</Button>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center text-white font-bold">
-                                            in
-                                        </div>
-                                        <div>
-                                            <p className="font-semibold">LinkedIn</p>
-                                            <p className="text-sm text-muted-foreground">{profile.linkedin_url ? 'Connected' : 'Not connected'}</p>
-                                        </div>
+                                    <div>
+                                        <p className="font-medium">GitHub</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            {profile.github_username ? `@${profile.github_username}` : 'Not connected'}
+                                        </p>
                                     </div>
-                                    <Button>Connect</Button>
                                 </div>
-                            </CardContent>
-                        </Card>
-                    </div>
+                                {profile.github_username ? (
+                                    <Badge className="bg-green-100 text-green-700">Connected</Badge>
+                                ) : (
+                                    <Button variant="outline" size="sm">Connect</Button>
+                                )}
+                            </div>
+                            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center">
+                                        <Linkedin className="w-5 h-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="font-medium">LinkedIn</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            {profile.linkedin_url ? 'Connected' : 'Not connected'}
+                                        </p>
+                                    </div>
+                                </div>
+                                {profile.linkedin_url ? (
+                                    <Badge className="bg-green-100 text-green-700">Connected</Badge>
+                                ) : (
+                                    <Button variant="outline" size="sm">Connect</Button>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </DashboardLayout>

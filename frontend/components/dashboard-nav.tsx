@@ -29,14 +29,13 @@ export function DashboardNav() {
     return (
         <aside className="h-full w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
             {/* Logo */}
-            <div className="p-6 border-b border-slate-200 dark:border-slate-800">
-                <Link href="/dashboard" className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg">
-                        <Briefcase className="h-5 w-5 text-white" />
-                    </div>
-                    <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                        CareerAutomate
-                    </span>
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800">
+                <Link href="/dashboard" className="flex items-center justify-center">
+                    <img
+                        src="https://i.postimg.cc/1RvV7gcX/CA_logo_banner_transparent.png"
+                        alt="CareerAutomate"
+                        className="h-10 object-contain"
+                    />
                 </Link>
             </div>
 
