@@ -77,6 +77,96 @@ interface UserProfile {
     onboarding_completed?: boolean;
 }
 
+// Component to check actual GitHub OAuth connection status
+function GitHubConnectionStatus({ profile }: { profile: UserProfile }) {
+    const [isConnected, setIsConnected] = useState(false);
+    const [githubUsername, setGithubUsername] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const checkConnection = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+
+                // Check github_integrations table for actual OAuth connection
+                const { data, error } = await supabase
+                    .from('github_integrations')
+                    .select('github_username, is_active')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (data && data.is_active) {
+                    setIsConnected(true);
+                    setGithubUsername(data.github_username);
+                } else {
+                    setIsConnected(false);
+                }
+            } catch (error) {
+                console.error('Error checking GitHub connection:', error);
+                setIsConnected(false);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        checkConnection();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-black rounded flex items-center justify-center">
+                        <Github className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                        <p className="font-medium">GitHub</p>
+                        <p className="text-sm text-muted-foreground">Checking...</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-black rounded flex items-center justify-center">
+                    <Github className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                    <p className="font-medium">GitHub</p>
+                    <p className="text-sm text-muted-foreground">
+                        {isConnected && githubUsername
+                            ? `@${githubUsername}`
+                            : 'Not connected'}
+                    </p>
+                </div>
+            </div>
+            {isConnected ? (
+                <Badge className="bg-green-100 text-green-700">Connected</Badge>
+            ) : (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                        // Redirect to GitHub OAuth
+                        const GITHUB_SYNC_URL = process.env.NEXT_PUBLIC_GITHUB_SYNC_SERVICE_URL;
+                        supabase.auth.getUser().then(({ data: { user } }) => {
+                            if (user) {
+                                window.location.href = `${GITHUB_SYNC_URL}/v1/github/authorize?user_id=${user.id}&redirect_to=/settings`;
+                            }
+                        });
+                    }}
+                >
+                    Connect
+                </Button>
+            )}
+        </div>
+    );
+}
+
 export default function SettingsPage() {
     const router = useRouter();
     const [profile, setProfile] = useState<UserProfile>({});
@@ -253,8 +343,8 @@ export default function SettingsPage() {
                 {/* Status Message */}
                 {message && (
                     <div className={`mb-6 p-4 rounded-lg flex items-center justify-between ${message.type === 'success'
-                            ? 'bg-green-50 border border-green-200 text-green-700'
-                            : 'bg-red-50 border border-red-200 text-red-700'
+                        ? 'bg-green-50 border border-green-200 text-green-700'
+                        : 'bg-red-50 border border-red-200 text-red-700'
                         }`}>
                         <span>{message.text}</span>
                         <button onClick={() => setMessage(null)} className="text-gray-500 hover:text-gray-700">×</button>
@@ -693,45 +783,10 @@ export default function SettingsPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>Connected Accounts</CardTitle>
-                            <CardDescription>Manage your connected social accounts</CardDescription>
+                            <CardDescription>Manage your connected accounts for project sync</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-black rounded flex items-center justify-center">
-                                        <Github className="w-5 h-5 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="font-medium">GitHub</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            {profile.github_username ? `@${profile.github_username}` : 'Not connected'}
-                                        </p>
-                                    </div>
-                                </div>
-                                {profile.github_username ? (
-                                    <Badge className="bg-green-100 text-green-700">Connected</Badge>
-                                ) : (
-                                    <Button variant="outline" size="sm">Connect</Button>
-                                )}
-                            </div>
-                            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-blue-600 rounded flex items-center justify-center">
-                                        <Linkedin className="w-5 h-5 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="font-medium">LinkedIn</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            {profile.linkedin_url ? 'Connected' : 'Not connected'}
-                                        </p>
-                                    </div>
-                                </div>
-                                {profile.linkedin_url ? (
-                                    <Badge className="bg-green-100 text-green-700">Connected</Badge>
-                                ) : (
-                                    <Button variant="outline" size="sm">Connect</Button>
-                                )}
-                            </div>
+                            <GitHubConnectionStatus profile={profile} />
                         </CardContent>
                     </Card>
                 </div>

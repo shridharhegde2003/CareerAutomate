@@ -179,8 +179,55 @@ function ProjectsPageContent() {
 
             if (error) throw error;
             setRepositories(data || []);
+
+            // Auto-detect genres for repos that don't have them (runs in background)
+            if (data && data.length > 0) {
+                autoDetectGenresForRepos(data);
+            }
         } catch (error) {
             console.error('Error fetching repositories:', error);
+        }
+    };
+
+    // Auto-detect genres for repositories without genres (background process)
+    const autoDetectGenresForRepos = async (repos: Repository[]) => {
+        const reposWithoutGenres = repos.filter(
+            repo => (!repo.genres || repo.genres.length === 0) && repo.readme_content
+        );
+
+        if (reposWithoutGenres.length === 0) return;
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            // Process repos sequentially to avoid rate limiting
+            for (const repo of reposWithoutGenres) {
+                try {
+                    const response = await fetch(`${GITHUB_SYNC_SERVICE_URL}/v1/projects/${repo.id}/detect-genre`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${session.access_token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Update the local state with detected genres
+                        setRepositories(prev => prev.map(r =>
+                            r.id === repo.id ? { ...r, genres: data.genres } : r
+                        ));
+                    }
+
+                    // Small delay between requests to avoid rate limiting
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } catch (err) {
+                    console.warn(`Failed to auto-detect genre for ${repo.name}:`, err);
+                }
+            }
+        } catch (error) {
+            console.error('Error in auto-detect genres:', error);
         }
     };
 
@@ -514,14 +561,26 @@ function ProjectsPageContent() {
                 }
             }
 
-            // Generate unique filename
-            const fileName = `${session.user.id}/${selectedRepoForVideo.id}/${Date.now()}.webm`;
+            // Determine file extension based on content type
+            // For recorded videos (webm) or uploaded videos (mp4, webm, mov, avi)
+            const contentType = recordedBlob.type || 'video/webm';
+            const extensionMap: Record<string, string> = {
+                'video/webm': 'webm',
+                'video/mp4': 'mp4',
+                'video/quicktime': 'mov',
+                'video/x-msvideo': 'avi'
+            };
+            const fileExtension = extensionMap[contentType] || 'mp4';
+
+            // New storage format: {user_uuid}/{project_id}.{extension}
+            // This allows Resume Generator to auto-match videos to projects
+            const fileName = `${session.user.id}/${selectedRepoForVideo.id}.${fileExtension}`;
 
             // Upload to Supabase Storage
             const { data, error } = await supabase.storage
                 .from('project-videos')
                 .upload(fileName, recordedBlob, {
-                    contentType: 'video/webm',
+                    contentType: contentType,
                     upsert: true
                 });
 
@@ -542,12 +601,12 @@ function ProjectsPageContent() {
                     repo_id: selectedRepoForVideo.id,
                     storage_path: fileName,
                     storage_bucket: 'project-videos',
-                    file_name: `${selectedRepoForVideo.name}-intro.webm`,
+                    file_name: `${selectedRepoForVideo.name}-intro.${fileExtension}`,
                     file_size: recordedBlob.size,
-                    content_type: 'video/webm',
+                    content_type: contentType,
                     status: 'uploaded',
                     playback_url: playbackUrl
-                }, { onConflict: 'user_id,repo_id' });
+                }, { onConflict: 'repo_id' });
 
             if (dbError) throw dbError;
 

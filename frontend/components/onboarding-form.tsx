@@ -546,9 +546,9 @@ export function OnboardingForm() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'profilePhoto' | 'govtId') => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setValidationError('File size must be less than 5MB');
+      // Validate file size (max 1MB)
+      if (file.size > 1 * 1024 * 1024) {
+        setValidationError('File size must be less than 1MB. Please compress your image and try again.');
         return;
       }
 
@@ -888,7 +888,7 @@ function Step1Personal({ formData, setFormData, handleFileChange, isUploading }:
                 </div>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Max 5MB, formats: JPEG, JPG, PNG</p>
+            <p className="text-xs text-muted-foreground">Max 1MB, formats: JPEG, JPG, PNG</p>
           </div>
 
           <div className="space-y-2">
@@ -908,7 +908,7 @@ function Step1Personal({ formData, setFormData, handleFileChange, isUploading }:
                 </div>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Max 5MB, formats: JPEG, JPG, PNG, PDF</p>
+            <p className="text-xs text-muted-foreground">Max 1MB, formats: JPEG, JPG, PNG, PDF</p>
           </div>
         </div>
       </div>

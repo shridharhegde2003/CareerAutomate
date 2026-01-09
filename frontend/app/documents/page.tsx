@@ -1,34 +1,31 @@
 // frontend/app/documents/page.tsx
 "use client";
 
-// frontend/app/documents/page.tsx
-"use client";
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { supabase } from "@/lib/supabase";
-import { Edit, Download, Trash2, Upload, FileText } from "lucide-react";
+import { Edit, Download, Trash2, Upload, FileText, Sparkles, Loader2, Eye, CheckCircle2, X, ExternalLink } from "lucide-react";
 
-// TODO: Import AI service functions when AI-Service microservice is implemented
-// import { generateAIResume, tailorResume } from "@/lib/api-services";
+const RESUME_SERVICE_URL = process.env.NEXT_PUBLIC_RESUME_SERVICE_URL || '';
 
-interface Document {
+interface ResumeDocument {
     id: string;
     title: string;
     role: string | null;
+    template_id: string | null;
+    file_url: string | null;
     updated_at: string;
-    auto_tailor: boolean;
+    created_at: string;
 }
 
 interface CertificateDocument {
@@ -43,6 +40,19 @@ interface CertificateDocument {
     rejection_reason?: string | null;
 }
 
+interface ResumeTemplate {
+    id: string;
+    name: string;
+    has_photo: boolean;
+    description: string;
+}
+
+interface UserProfile {
+    career_preferences?: {
+        roles_targeted?: string[];
+    };
+}
+
 const DOC_TYPES = [
     '10th Mark Sheet',
     '12th Mark Sheet',
@@ -54,9 +64,12 @@ const DOC_TYPES = [
     'Other',
 ];
 
+// Only show modern and classic templates (exclude creative)
+const ALLOWED_TEMPLATES = ['modern', 'classic'];
+
 export default function DocumentsPage() {
     const router = useRouter();
-    const [documents, setDocuments] = useState<Document[]>([]);
+    const [documents, setDocuments] = useState<ResumeDocument[]>([]);
     const [certificates, setCertificates] = useState<CertificateDocument[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -64,18 +77,93 @@ export default function DocumentsPage() {
     const [selectedDoc, setSelectedDoc] = useState<CertificateDocument | null>(null);
     const [newFileName, setNewFileName] = useState('');
 
+    // Resume generation states
+    const [generating, setGenerating] = useState(false);
+    const [createDialogOpen, setCreateDialogOpen] = useState(false);
+    const [selectedRole, setSelectedRole] = useState('');
+    const [selectedTemplate, setSelectedTemplate] = useState('modern');
+    const [templates, setTemplates] = useState<ResumeTemplate[]>([]);
+    const [userRoles, setUserRoles] = useState<string[]>([]);
+    const [generationSuccess, setGenerationSuccess] = useState<{ url: string; docId: string } | null>(null);
+
+    // PDF Viewer states
+    const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
+    const [viewingResume, setViewingResume] = useState<ResumeDocument | null>(null);
+
     useEffect(() => {
-        fetchDocuments();
-        fetchCertificates();
+        fetchData();
     }, []);
 
-    const fetchDocuments = async () => {
+    const fetchData = async () => {
+        setLoading(true);
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
                 router.push('/login');
                 return;
             }
+
+            // Fetch user profile to get targeted roles
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('career_preferences')
+                .eq('id', user.id)
+                .single();
+
+            if (profile?.career_preferences?.roles_targeted) {
+                setUserRoles(profile.career_preferences.roles_targeted);
+                if (profile.career_preferences.roles_targeted.length > 0) {
+                    setSelectedRole(profile.career_preferences.roles_targeted[0]);
+                }
+            }
+
+            // Fetch resumes
+            await fetchDocuments();
+            await fetchCertificates();
+
+            // Fetch resume options from API
+            await fetchResumeOptions(user);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchResumeOptions = async (user: any) => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session || !RESUME_SERVICE_URL) return;
+
+            const response = await fetch(`${RESUME_SERVICE_URL}/v1/resumes/options`, {
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Filter to only allowed templates (modern and classic)
+                const filteredTemplates = (data.templates || []).filter(
+                    (t: ResumeTemplate) => ALLOWED_TEMPLATES.includes(t.id)
+                );
+                setTemplates(filteredTemplates);
+
+                // If user has no roles from profile, use genres from API
+                if (userRoles.length === 0 && data.genres?.length > 0) {
+                    setUserRoles(data.genres);
+                    setSelectedRole(data.genres[0]);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching resume options:', error);
+        }
+    };
+
+    const fetchDocuments = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
 
             const { data, error } = await supabase
                 .from('documents')
@@ -88,8 +176,6 @@ export default function DocumentsPage() {
             setDocuments(data || []);
         } catch (error) {
             console.error('Error fetching documents:', error);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -111,6 +197,57 @@ export default function DocumentsPage() {
         }
     };
 
+    const handleGenerateResume = async () => {
+        if (!selectedRole || !selectedTemplate) {
+            alert('Please select a role and template');
+            return;
+        }
+
+        setGenerating(true);
+        setGenerationSuccess(null);
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                router.push('/login');
+                return;
+            }
+
+            const response = await fetch(`${RESUME_SERVICE_URL}/v1/resumes/generate`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    genre: selectedRole,
+                    template_id: selectedTemplate
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || data.message || 'Failed to generate resume');
+            }
+
+            // Success!
+            setGenerationSuccess({
+                url: data.pdf_url,
+                docId: data.document_id
+            });
+
+            // Refresh documents list
+            await fetchDocuments();
+
+        } catch (error: any) {
+            console.error('Error generating resume:', error);
+            alert(error.message || 'Failed to generate resume. Please try again.');
+        } finally {
+            setGenerating(false);
+        }
+    };
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: string) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -120,7 +257,6 @@ export default function DocumentsPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Upload to Supabase Storage
             const fileExt = file.name.split('.').pop();
             const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
@@ -130,12 +266,10 @@ export default function DocumentsPage() {
 
             if (uploadError) throw uploadError;
 
-            // Get public URL
             const { data: urlData } = supabase.storage
                 .from('certificates-documents')
                 .getPublicUrl(fileName);
 
-            // Save to database
             const { error: dbError } = await supabase
                 .from('certificate_documents')
                 .insert({
@@ -166,13 +300,11 @@ export default function DocumentsPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Delete from storage
             const filePath = doc.file_url.split('/').slice(-2).join('/');
             await supabase.storage
                 .from('certificates-documents')
                 .remove([filePath]);
 
-            // Delete from database
             await supabase
                 .from('certificate_documents')
                 .delete()
@@ -182,6 +314,22 @@ export default function DocumentsPage() {
         } catch (error) {
             console.error('Error deleting document:', error);
             alert('Error deleting document. Please try again.');
+        }
+    };
+
+    const handleDeleteResume = async (doc: ResumeDocument) => {
+        if (!confirm('Are you sure you want to delete this resume?')) return;
+
+        try {
+            await supabase
+                .from('documents')
+                .delete()
+                .eq('id', doc.id);
+
+            await fetchDocuments();
+        } catch (error) {
+            console.error('Error deleting resume:', error);
+            alert('Error deleting resume. Please try again.');
         }
     };
 
@@ -204,73 +352,8 @@ export default function DocumentsPage() {
         }
     };
 
-    const handleDownload = (doc: CertificateDocument) => {
-        window.open(doc.file_url, '_blank');
-    };
-
-    const toggleAutoTailor = async (docId: string, value: boolean) => {
-        try {
-            await supabase
-                .from('documents')
-                .update({ auto_tailor: value })
-                .eq('id', docId);
-
-            // TODO: When AI-Service is implemented, trigger resume tailoring
-            // if (value) {
-            //   const { data: { user } } = await supabase.auth.getUser();
-            //   await tailorResume({
-            //     resumeId: docId,
-            //     jobDescription: "[Get from job posting]"
-            //   });
-            // }
-
-            setDocuments(documents.map(doc =>
-                doc.id === docId ? { ...doc, auto_tailor: value } : doc
-            ));
-        } catch (error) {
-            console.error('Error updating auto-tailor:', error);
-        }
-    };
-
-    // TODO: Implement AI Resume Generation
-    // This will call AI-Service microservice to generate resume using LLM
-    const handleCreateResume = async (targetRole: string) => {
-        // TODO: Uncomment when AI-Service (port 8001) is ready
-        /*
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            // Fetch user profile data for resume generation
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single();
-
-            // Call AI-Service to generate resume
-            const result = await generateAIResume({
-                userId: user.id,
-                targetRole: targetRole,
-                userProfile: profile
-            });
-
-            // Save generated resume to database
-            if (result.success) {
-                await supabase.from('documents').insert({
-                    user_id: user.id,
-                    document_type: 'resume',
-                    title: `${targetRole} Resume`,
-                    role: targetRole,
-                    file_url: result.resume_url
-                });
-                await fetchDocuments();
-            }
-        } catch (error) {
-            console.error('Error generating resume:', error);
-        }
-        */
-        alert('AI Resume Generation will be available when AI-Service microservice is implemented');
+    const handleDownload = (url: string) => {
+        window.open(url, '_blank');
     };
 
     const getRoleBadge = (role: string | null) => {
@@ -279,12 +362,29 @@ export default function DocumentsPage() {
         const colors: Record<string, string> = {
             'Data Analyst': 'bg-blue-100 text-blue-700',
             'Software Engineer': 'bg-green-100 text-green-700',
+            'Full Stack Developer': 'bg-emerald-100 text-emerald-700',
+            'Backend Developer': 'bg-teal-100 text-teal-700',
+            'Frontend Developer': 'bg-cyan-100 text-cyan-700',
             'Product Manager': 'bg-purple-100 text-purple-700',
+            'Data Scientist': 'bg-indigo-100 text-indigo-700',
         };
 
         return (
             <Badge className={colors[role] || 'bg-gray-100 text-gray-700'}>
                 {role}
+            </Badge>
+        );
+    };
+
+    const getTemplateBadge = (templateId: string | null) => {
+        if (!templateId) return null;
+        const names: Record<string, string> = {
+            'modern': 'Modern Minimal',
+            'classic': 'Classic Corporate'
+        };
+        return (
+            <Badge variant="outline" className="text-xs">
+                {names[templateId] || templateId}
             </Badge>
         );
     };
@@ -320,7 +420,7 @@ export default function DocumentsPage() {
 
     return (
         <DashboardLayout>
-            <DashboardHeader title="Documents" subtitle="Manage your documents and certificates" />
+            <DashboardHeader title="Documents" subtitle="Manage your resumes and certificates" />
 
             <div className="p-8">
                 <h1 className="text-3xl font-bold mb-8">Documents</h1>
@@ -332,77 +432,207 @@ export default function DocumentsPage() {
                     </TabsList>
 
                     <TabsContent value="ai-resume" className="mt-6">
-                        <p className="text-sm text-muted-foreground mb-6">
-                            You have {documents.length} resume(s) left out of 10
-                        </p>
+                        {/* Resume Generation Card */}
+                        <Card className="mb-6 border-2 border-dashed border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50">
+                            <CardContent className="pt-6">
+                                <div className="flex items-start gap-4">
+                                    <div className="p-3 bg-blue-100 rounded-xl">
+                                        <Sparkles className="w-6 h-6 text-blue-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-semibold text-slate-900 mb-1">
+                                            Generate AI-Powered Resume
+                                        </h3>
+                                        <p className="text-sm text-slate-600 mb-4">
+                                            Create a professional resume tailored to your target role using AI.
+                                            Your profile, skills, and projects will be automatically included.
+                                        </p>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                            <div>
+                                                <Label className="text-xs text-slate-500 mb-1 block">Target Role</Label>
+                                                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select role" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {userRoles.map((role) => (
+                                                            <SelectItem key={role} value={role}>
+                                                                {role}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div>
+                                                <Label className="text-xs text-slate-500 mb-1 block">Template</Label>
+                                                <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select template" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {templates.map((template) => (
+                                                            <SelectItem key={template.id} value={template.id}>
+                                                                {template.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                        {templates.length === 0 && (
+                                                            <>
+                                                                <SelectItem value="modern">Modern Minimal</SelectItem>
+                                                                <SelectItem value="classic">Classic Corporate</SelectItem>
+                                                            </>
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="flex items-end">
+                                                <Button
+                                                    onClick={handleGenerateResume}
+                                                    disabled={generating || !selectedRole || !RESUME_SERVICE_URL}
+                                                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                                                >
+                                                    {generating ? (
+                                                        <>
+                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                            Generating...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Sparkles className="w-4 h-4 mr-2" />
+                                                            Generate Resume
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {!RESUME_SERVICE_URL && (
+                                            <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded">
+                                                Resume service not configured. Please set NEXT_PUBLIC_RESUME_SERVICE_URL.
+                                            </p>
+                                        )}
+
+                                        {generationSuccess && (
+                                            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                                    <span className="text-green-800 font-medium">Resume generated successfully!</span>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            // Find the newly generated resume and open viewer
+                                                            const newResume = documents.find(d => d.id === generationSuccess.docId);
+                                                            if (newResume) {
+                                                                setViewingResume(newResume);
+                                                                setPdfViewerOpen(true);
+                                                            } else {
+                                                                // Fallback: open in new tab
+                                                                window.open(generationSuccess.url, '_blank');
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Eye className="w-4 h-4 mr-1" />
+                                                        View PDF
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => handleDownload(generationSuccess.url)}
+                                                    >
+                                                        <Download className="w-4 h-4 mr-1" />
+                                                        Download
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Existing Resumes */}
+                        <div className="mb-4">
+                            <h3 className="text-lg font-semibold text-slate-800">Your Resumes</h3>
+                            <p className="text-sm text-muted-foreground">
+                                {documents.length} resume{documents.length !== 1 ? 's' : ''} generated
+                            </p>
+                        </div>
 
                         <div className="space-y-4">
                             {loading ? (
-                                <div>Loading...</div>
+                                <Card>
+                                    <CardContent className="pt-6">
+                                        <div className="flex items-center justify-center py-8">
+                                            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                                            <span className="ml-2 text-muted-foreground">Loading resumes...</span>
+                                        </div>
+                                    </CardContent>
+                                </Card>
                             ) : documents.length === 0 ? (
                                 <Card>
                                     <CardContent className="pt-6">
-                                        <p className="text-center text-muted-foreground py-8">
-                                            No resumes yet. Create your first AI-generated resume!
-                                        </p>
+                                        <div className="text-center py-12">
+                                            <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                                            <p className="text-muted-foreground">
+                                                No resumes yet. Generate your first AI-powered resume above!
+                                            </p>
+                                        </div>
                                     </CardContent>
                                 </Card>
                             ) : (
                                 documents.map((doc) => (
-                                    <Card key={doc.id}>
+                                    <Card key={doc.id} className="hover:shadow-md transition-shadow">
                                         <CardContent className="pt-6">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex-1">
-                                                    <div className="flex items-center gap-2 mb-1">
+                                                    <div className="flex items-center gap-2 mb-2">
                                                         {getRoleBadge(doc.role)}
+                                                        {getTemplateBadge(doc.template_id)}
                                                     </div>
-                                                    <h3 className="font-semibold text-lg">{doc.title}</h3>
+                                                    <h3 className="font-semibold text-lg text-slate-900">{doc.title}</h3>
                                                     <p className="text-sm text-muted-foreground">
-                                                        Last updated: {new Date(doc.updated_at).toLocaleDateString()}
+                                                        Created: {new Date(doc.created_at).toLocaleDateString()} • Updated: {new Date(doc.updated_at).toLocaleDateString()}
                                                     </p>
                                                 </div>
-                                                <div className="flex items-center gap-4">
-                                                    <Button variant="ghost" size="sm" className="gap-2">
-                                                        <Edit className="w-4 h-4" />
-                                                        Edit
-                                                    </Button>
-                                                    <Button variant="ghost" size="sm" className="gap-2">
-                                                        <Download className="w-4 h-4" />
-                                                        Download PDF
+                                                <div className="flex items-center gap-2">
+                                                    {doc.file_url && (
+                                                        <>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setViewingResume(doc);
+                                                                    setPdfViewerOpen(true);
+                                                                }}
+                                                            >
+                                                                <Eye className="w-4 h-4 mr-1" />
+                                                                View
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleDownload(doc.file_url!)}
+                                                            >
+                                                                <Download className="w-4 h-4 mr-1" />
+                                                                Download
+                                                            </Button>
+                                                        </>
+                                                    )}
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteResume(doc)}
+                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
                                                     </Button>
                                                 </div>
                                             </div>
                                         </CardContent>
                                     </Card>
                                 ))
-                            )}
-
-                            <Card className="mt-6">
-                                <CardContent className="pt-6">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <h3 className="font-semibold mb-1">Auto-Tailor for Next Job Search</h3>
-                                            <p className="text-sm text-muted-foreground">
-                                                Automatically tailor your resume for each job application.
-                                            </p>
-                                        </div>
-                                        <Switch defaultChecked={false} />
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {documents.length < 10 && (
-                                <div className="mt-6 p-8 border-2 border-dashed rounded-lg text-center">
-                                    <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                                    <p className="text-muted-foreground mb-4">Create a new AI-powered resume</p>
-                                    <Button onClick={() => handleCreateResume('Software Engineer')}>
-                                        Create New Resume
-                                    </Button>
-                                    <p className="text-xs text-muted-foreground mt-2">
-                                        {/* TODO: AI-Service integration pending */}
-                                        Powered by AI (Coming Soon)
-                                    </p>
-                                </div>
                             )}
                         </div>
                     </TabsContent>
@@ -499,7 +729,7 @@ export default function DocumentsPage() {
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        onClick={() => handleDownload(doc)}
+                                                        onClick={() => handleDownload(doc.file_url)}
                                                     >
                                                         <Download className="w-4 h-4" />
                                                     </Button>
@@ -544,6 +774,80 @@ export default function DocumentsPage() {
                         </Button>
                         <Button onClick={handleRename}>Rename</Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* PDF Viewer Dialog */}
+            <Dialog open={pdfViewerOpen} onOpenChange={setPdfViewerOpen}>
+                <DialogContent className="max-w-6xl w-[95vw] h-[90vh] p-0 overflow-hidden">
+                    <div className="flex flex-col h-full">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
+                            <div className="flex items-center gap-3">
+                                <FileText className="w-6 h-6 text-blue-600" />
+                                <div>
+                                    <h2 className="text-lg font-semibold text-slate-900">
+                                        {viewingResume?.title || 'Resume Preview'}
+                                    </h2>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        {viewingResume?.role && (
+                                            <Badge className="text-xs bg-blue-100 text-blue-700">
+                                                {viewingResume.role}
+                                            </Badge>
+                                        )}
+                                        {viewingResume?.template_id && (
+                                            <Badge variant="outline" className="text-xs">
+                                                {viewingResume.template_id === 'modern' ? 'Modern Minimal' : 'Classic Corporate'}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => viewingResume?.file_url && window.open(viewingResume.file_url, '_blank')}
+                                >
+                                    <ExternalLink className="w-4 h-4 mr-1" />
+                                    Open in New Tab
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    onClick={() => viewingResume?.file_url && handleDownload(viewingResume.file_url)}
+                                >
+                                    <Download className="w-4 h-4 mr-1" />
+                                    Download PDF
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setPdfViewerOpen(false)}
+                                    className="ml-2"
+                                >
+                                    <X className="w-5 h-5" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* PDF Viewer */}
+                        <div className="flex-1 bg-gray-100">
+                            {viewingResume?.file_url ? (
+                                <iframe
+                                    src={`${viewingResume.file_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                                    className="w-full h-full border-0"
+                                    title="Resume PDF Preview"
+                                />
+                            ) : (
+                                <div className="flex items-center justify-center h-full">
+                                    <div className="text-center">
+                                        <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                        <p className="text-gray-500">No PDF available</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
         </DashboardLayout>

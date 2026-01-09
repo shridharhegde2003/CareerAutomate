@@ -10,13 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/lib/supabase";
 import {
-    Briefcase,
-    FileCheck,
     FolderGit2,
     FileText,
-    AlertTriangle,
-    TrendingUp,
-    Clock,
     Target
 } from "lucide-react";
 
@@ -112,36 +107,8 @@ function DashboardContent() {
             />
 
             <main className="p-6 space-y-6">
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <Card className="border-0 shadow-sm bg-white dark:bg-slate-900">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Jobs Applied</CardTitle>
-                            <Briefcase className="h-5 w-5 text-blue-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold">{stats.jobsApplied}</div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                <TrendingUp className="inline h-4 w-4 mr-1" />
-                                +12 this week
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-sm bg-white dark:bg-slate-900">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Interviews</CardTitle>
-                            <FileCheck className="h-5 w-5 text-green-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-bold">{stats.interviews}</div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                <Clock className="inline h-4 w-4 mr-1" />
-                                2 scheduled
-                            </p>
-                        </CardContent>
-                    </Card>
-
+                {/* Stats Grid - Only Projects and Resumes */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Card className="border-0 shadow-sm bg-white dark:bg-slate-900">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">Projects</CardTitle>
@@ -150,8 +117,7 @@ function DashboardContent() {
                         <CardContent>
                             <div className="text-3xl font-bold">{stats.projects}</div>
                             <p className="text-sm text-muted-foreground mt-1">
-                                <Target className="inline h-4 w-4 mr-1" />
-                                1 in progress
+                                Synced from GitHub
                             </p>
                         </CardContent>
                     </Card>
@@ -164,7 +130,7 @@ function DashboardContent() {
                         <CardContent>
                             <div className="text-3xl font-bold">{stats.resumeVersions}</div>
                             <p className="text-sm text-muted-foreground mt-1">
-                                Last filtered 2d ago
+                                Generated versions
                             </p>
                         </CardContent>
                     </Card>
