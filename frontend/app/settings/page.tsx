@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { supabase } from "@/lib/supabase";
-import { Edit2, Save, X, Plus, Trash2, Github, Linkedin, Mail, MapPin, Calendar, GraduationCap, Briefcase, Key, User } from "lucide-react";
+import { Edit2, Save, X, Plus, Trash2, Github, Linkedin, Mail, MapPin, Calendar, GraduationCap, Briefcase, Key, User, Bell, AlertTriangle } from "lucide-react";
+import { useSystemControlsContext } from "@/components/SystemControlsProvider";
 
 // Degree type options (same as onboarding form)
 const DEGREE_TYPES = [
@@ -75,10 +76,22 @@ interface UserProfile {
     profile_photo_url?: string;
     govt_id_url?: string;
     onboarding_completed?: boolean;
+    job_notification_frequency?: string;
+    video_notification_frequency?: string;
 }
 
+// Notification frequency options
+const NOTIFICATION_FREQUENCIES = [
+    { value: 'daily', label: 'Daily' },
+    { value: 'every_2_days', label: 'Every 2 Days' },
+    { value: 'every_3_days', label: 'Every 3 Days' },
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'never', label: 'Never' },
+];
+
 // Component to check actual GitHub OAuth connection status
-function GitHubConnectionStatus({ profile }: { profile: UserProfile }) {
+function GitHubConnectionStatus({ profile, automationsStopped }: { profile: UserProfile; automationsStopped: boolean }) {
     const [isConnected, setIsConnected] = useState(false);
     const [githubUsername, setGithubUsername] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -150,7 +163,10 @@ function GitHubConnectionStatus({ profile }: { profile: UserProfile }) {
                 <Button
                     variant="outline"
                     size="sm"
+                    disabled={automationsStopped}
+                    title={automationsStopped ? 'Service temporarily unavailable - under maintenance' : ''}
                     onClick={() => {
+                        if (automationsStopped) return;
                         // Redirect to GitHub OAuth
                         const GITHUB_SYNC_URL = process.env.NEXT_PUBLIC_GITHUB_SYNC_SERVICE_URL;
                         supabase.auth.getUser().then(({ data: { user } }) => {
@@ -160,7 +176,14 @@ function GitHubConnectionStatus({ profile }: { profile: UserProfile }) {
                         });
                     }}
                 >
-                    Connect
+                    {automationsStopped ? (
+                        <>
+                            <AlertTriangle className="w-4 h-4 mr-1" />
+                            Unavailable
+                        </>
+                    ) : (
+                        'Connect'
+                    )}
                 </Button>
             )}
         </div>
@@ -169,6 +192,7 @@ function GitHubConnectionStatus({ profile }: { profile: UserProfile }) {
 
 export default function SettingsPage() {
     const router = useRouter();
+    const { automationsStopped } = useSystemControlsContext();
     const [profile, setProfile] = useState<UserProfile>({});
     const [originalProfile, setOriginalProfile] = useState<UserProfile>({});
     const [loading, setLoading] = useState(true);
@@ -179,6 +203,7 @@ export default function SettingsPage() {
         skills: false,
         career: false,
         apiKeys: false,
+        notifications: false,
     });
     const [newSkill, setNewSkill] = useState('');
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -221,9 +246,176 @@ export default function SettingsPage() {
         }
     };
 
+    // Validation helper functions
+    const isValidEmail = (email: string): boolean => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
+    const isValidLinkedInUrl = (url: string): boolean => {
+        return url.includes('linkedin.com/');
+    };
+
+    const isValidDateOfBirth = (dateStr: string): boolean => {
+        if (!dateStr) return true; // Optional field
+        const date = new Date(dateStr);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Check if date is in the future
+        if (date > today) return false;
+
+        // Check if user is at least 13 years old
+        const minAge = 13;
+        const minDate = new Date();
+        minDate.setFullYear(minDate.getFullYear() - minAge);
+        if (date > minDate) return false;
+
+        // Check if date is reasonable (not more than 100 years ago)
+        const maxAge = 100;
+        const maxDate = new Date();
+        maxDate.setFullYear(maxDate.getFullYear() - maxAge);
+        if (date < maxDate) return false;
+
+        return true;
+    };
+
+    // Validate education completion year
+    const isValidEducationYear = (yearStr: string): string | null => {
+        if (!yearStr) return null; // Optional
+
+        const year = parseInt(yearStr);
+        const currentYear = new Date().getFullYear();
+
+        // Year should not be more than 10 years in the future (reasonable for ongoing education)
+        if (year > currentYear + 10) {
+            return `Completion year cannot be more than 10 years in the future (max: ${currentYear + 10})`;
+        }
+
+        // Year should be at least 10 years after date of birth
+        if (profile.date_of_birth) {
+            const birthYear = new Date(profile.date_of_birth).getFullYear();
+            const minGradYear = birthYear + 10;
+            if (year < minGradYear) {
+                return `Completion year must be at least 10 years after birth year (min: ${minGradYear})`;
+            }
+
+            // Year should not be before birth year
+            if (year <= birthYear) {
+                return `Completion year must be after your birth year (${birthYear})`;
+            }
+        }
+
+        // Basic sanity check - year should be reasonable (1950 onwards)
+        if (year < 1950) {
+            return 'Completion year must be 1950 or later';
+        }
+
+        return null;
+    };
+
+    // Validate education grades
+    const validateEducationGrades = (edu: Education, index: number): string | null => {
+        if (edu.grade_type === 'cgpa') {
+            const obtained = parseFloat(edu.obtained_cgpa || '0');
+            const max = parseFloat(edu.max_cgpa || '10');
+            if (obtained > max) {
+                return `Education #${index + 1}: CGPA Obtained (${obtained}) cannot be greater than Maximum CGPA (${max})`;
+            }
+            if (obtained < 0) {
+                return `Education #${index + 1}: CGPA cannot be negative`;
+            }
+            if (max <= 0 || max > 10) {
+                return `Education #${index + 1}: Maximum CGPA must be between 1 and 10`;
+            }
+        } else if (edu.grade_type === 'percentage') {
+            const obtained = parseFloat(edu.obtained_marks || edu.percentage || '0');
+            const total = parseFloat(edu.total_marks || '100');
+            if (obtained > total) {
+                return `Education #${index + 1}: Obtained Marks cannot be greater than Total Marks`;
+            }
+            if (obtained < 0 || total < 0) {
+                return `Education #${index + 1}: Marks cannot be negative`;
+            }
+            if (total > 1000) {
+                return `Education #${index + 1}: Total marks cannot exceed 1000`;
+            }
+        }
+        return null;
+    };
+
+    // Validate section before saving
+    const validateSection = (section: string): string | null => {
+        switch (section) {
+            case 'personal':
+                if (profile.secondary_email && !isValidEmail(profile.secondary_email)) {
+                    return 'Please enter a valid secondary email address';
+                }
+                if (profile.date_of_birth && !isValidDateOfBirth(profile.date_of_birth)) {
+                    return 'Invalid date of birth. You must be between 13 and 100 years old.';
+                }
+                if (profile.linkedin_url && !isValidLinkedInUrl(profile.linkedin_url)) {
+                    return 'Please enter a valid LinkedIn URL (must contain linkedin.com/)';
+                }
+                break;
+            case 'skills':
+                if (!profile.skills || profile.skills.length === 0) {
+                    return 'At least one skill is required';
+                }
+                break;
+            case 'academic':
+                // Validate education entries if they exist
+                if (profile.education && profile.education.length > 0) {
+                    for (let i = 0; i < profile.education.length; i++) {
+                        const edu = profile.education[i];
+
+                        // Validate year of completion
+                        const yearToValidate = edu.year_of_completion || edu.graduation_year;
+                        if (yearToValidate) {
+                            const yearError = isValidEducationYear(yearToValidate);
+                            if (yearError) {
+                                return `Education #${i + 1}: ${yearError}`;
+                            }
+                        }
+
+                        // Validate grades
+                        const gradeError = validateEducationGrades(edu, i);
+                        if (gradeError) {
+                            return gradeError;
+                        }
+                    }
+                }
+                break;
+            case 'career':
+                const targetLpa = profile.career_preferences?.min_target_lpa;
+                if (targetLpa !== undefined && (targetLpa < 1 || targetLpa > 200)) {
+                    return 'Target LPA must be between 1 and 200 lakhs';
+                }
+                if (!profile.career_preferences?.roles_targeted || profile.career_preferences.roles_targeted.length === 0) {
+                    return 'Please select at least one preferred job role';
+                }
+                break;
+            case 'apiKeys':
+                // API keys are optional, no validation needed
+                break;
+            case 'notifications':
+                // Notification preferences have predefined values, no validation needed
+                break;
+        }
+        return null;
+    };
+
     const handleSave = async (section: string) => {
         setSaving(true);
         setMessage(null);
+
+        // Validate before saving
+        const validationError = validateSection(section);
+        if (validationError) {
+            setMessage({ type: 'error', text: validationError });
+            setSaving(false);
+            return;
+        }
 
         try {
             const { data: { user } } = await supabase.auth.getUser();
@@ -779,6 +971,109 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
 
+                    {/* Notification Preferences */}
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Bell className="w-5 h-5 text-indigo-600" />
+                                    <CardTitle>Notification Preferences</CardTitle>
+                                </div>
+                                {!editMode.notifications ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setEditMode({ ...editMode, notifications: true })}
+                                    >
+                                        <Edit2 className="w-4 h-4 mr-1" /> Edit
+                                    </Button>
+                                ) : (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleCancel('notifications')}
+                                        >
+                                            <X className="w-4 h-4 mr-1" /> Cancel
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleSave('notifications')}
+                                            disabled={saving}
+                                        >
+                                            <Save className="w-4 h-4 mr-1" /> Save
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                            <CardDescription>Control how often you receive email notifications</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                    <Mail className="w-4 h-4" /> Job Recommendations Frequency
+                                </Label>
+                                {editMode.notifications ? (
+                                    <Select
+                                        value={profile.job_notification_frequency || 'daily'}
+                                        onValueChange={(value) => setProfile({ ...profile, job_notification_frequency: value })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select frequency" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {NOTIFICATION_FREQUENCIES.map((freq) => (
+                                                <SelectItem key={freq.value} value={freq.value}>
+                                                    {freq.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <div className="p-3 bg-muted/50 rounded-lg">
+                                        <span className="font-medium">
+                                            {NOTIFICATION_FREQUENCIES.find(f => f.value === profile.job_notification_frequency)?.label || 'Daily'}
+                                        </span>
+                                    </div>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                    How often you'll receive job recommendation emails matching your profile.
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                    <Bell className="w-4 h-4" /> Video Reminder Frequency
+                                </Label>
+                                {editMode.notifications ? (
+                                    <Select
+                                        value={profile.video_notification_frequency || 'daily'}
+                                        onValueChange={(value) => setProfile({ ...profile, video_notification_frequency: value })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select frequency" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {NOTIFICATION_FREQUENCIES.map((freq) => (
+                                                <SelectItem key={freq.value} value={freq.value}>
+                                                    {freq.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <div className="p-3 bg-muted/50 rounded-lg">
+                                        <span className="font-medium">
+                                            {NOTIFICATION_FREQUENCIES.find(f => f.value === profile.video_notification_frequency)?.label || 'Daily'}
+                                        </span>
+                                    </div>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                    How often you'll receive reminders to upload intro videos for your projects.
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {/* Connected Accounts */}
                     <Card>
                         <CardHeader>
@@ -786,7 +1081,7 @@ export default function SettingsPage() {
                             <CardDescription>Manage your connected accounts for project sync</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <GitHubConnectionStatus profile={profile} />
+                            <GitHubConnectionStatus profile={profile} automationsStopped={automationsStopped} />
                         </CardContent>
                     </Card>
                 </div>

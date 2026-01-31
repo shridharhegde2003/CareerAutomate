@@ -115,7 +115,7 @@ export function Footer() {
 
           {/* Footer bottom */}
           <div className="flex flex-col sm:flex-row justify-between items-center text-xs sm:text-sm text-muted-foreground gap-4">
-            <p>&copy; 2025 CareerAutoMate. All rights reserved.</p>
+            <p>&copy; 2025-2026 CareerAutoMate. All rights reserved.</p>
           </div>
         </div>
       </footer>
@@ -212,7 +212,7 @@ export function Footer() {
             </section>
             <section>
               <h3 className="font-semibold text-foreground mb-2">6. Contact</h3>
-              <p>For privacy-related inquiries, contact us at: <a href="mailto:friendzone108108@gmail.com" className="text-blue-600 hover:underline">friendzone108108@gmail.com</a></p>
+              <p>For privacy-related inquiries, contact us at: <a href="mailto:info.careerautomate@gmail.com" className="text-blue-600 hover:underline">info.careerautomate@gmail.com</a></p>
             </section>
           </div>
         </DialogContent>
@@ -271,10 +271,10 @@ export function Footer() {
               <div className="text-4xl mb-4">📧</div>
               <h3 className="font-semibold text-lg mb-2">Email Us</h3>
               <a
-                href="mailto:friendzone108108@gmail.com"
+                href="mailto:info.careerautomate@gmail.com"
                 className="text-blue-600 dark:text-blue-400 hover:underline text-lg font-medium"
               >
-                friendzone108108@gmail.com
+                info.careerautomate@gmail.com
               </a>
               <p className="text-sm text-muted-foreground mt-3">
                 We typically respond within 24-48 hours.

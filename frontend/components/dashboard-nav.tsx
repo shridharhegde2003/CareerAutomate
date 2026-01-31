@@ -9,7 +9,6 @@ import {
     FolderKanban,
     FileText,
     BarChart3,
-    Bell,
     Settings,
     Briefcase,
 } from "lucide-react";
@@ -19,7 +18,6 @@ const navItems = [
     { href: "/projects", label: "Projects", icon: FolderKanban },
     { href: "/documents", label: "Documents", icon: FileText },
     { href: "/reports", label: "Reports", icon: BarChart3 },
-    { href: "/notifications", label: "Notifications", icon: Bell },
     { href: "/settings", label: "Settings", icon: Settings },
 ];
 

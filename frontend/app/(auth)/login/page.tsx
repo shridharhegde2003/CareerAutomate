@@ -9,8 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator"; // Added for better UI
-import { Chrome, Github, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react"; // Added icons
+import { Separator } from "@/components/ui/separator";
+import { Chrome, Github, Mail, Lock, ArrowRight, AlertCircle, ShieldAlert } from "lucide-react";
+import { checkSystemControls } from "@/hooks/useSystemControls";
 
 function LoginForm() {
   const router = useRouter();
@@ -19,6 +20,18 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [emergencyStop, setEmergencyStop] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+
+  useEffect(() => {
+    // Check for emergency stop
+    const checkEmergency = async () => {
+      const controls = await checkSystemControls();
+      setEmergencyStop(controls.emergencyStop);
+      setCheckingStatus(false);
+    };
+    checkEmergency();
+  }, []);
 
   useEffect(() => {
     const errorMsg = searchParams.get("error");
@@ -70,6 +83,45 @@ function LoginForm() {
       setLoading(false);
     }
   };
+
+  // Show loading while checking status
+  if (checkingStatus) {
+    return (
+      <Card className="w-full max-w-md shadow-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+        <CardContent className="p-8 flex items-center justify-center">
+          <div className="h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show maintenance page if emergency stop is active
+  if (emergencyStop) {
+    return (
+      <Card className="w-full max-w-md shadow-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-l-4 border-l-red-500">
+        <CardContent className="p-8 text-center">
+          <div className="w-20 h-20 mx-auto mb-6 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+            <ShieldAlert className="w-10 h-10 text-red-600 dark:text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Service Temporarily Unavailable
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            Career Automate is currently undergoing maintenance.
+            We apologize for the inconvenience.
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Please try again later or contact support if this persists.
+          </p>
+          <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-xs text-gray-400">
+              🔧 Scheduled Maintenance
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <>
@@ -209,3 +261,4 @@ export default function LoginPage() {
     </Suspense>
   );
 }
+

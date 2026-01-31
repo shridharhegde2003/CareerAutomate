@@ -12,8 +12,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Bell, Search, LogOut, User, Settings } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { LogOut, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { OnboardingService } from "@/services/onboarding";
@@ -79,21 +78,6 @@ export function DashboardHeader({ title, subtitle }: DashboardHeaderProps) {
             </div>
 
             <div className="flex items-center gap-4">
-                {/* Search */}
-                <div className="relative hidden md:block">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                        type="text"
-                        placeholder="Search..."
-                        className="w-64 pl-10 h-10 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                    />
-                </div>
-
-                {/* Notifications */}
-                <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="h-5 w-5 text-slate-500" />
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-                </Button>
 
                 {/* Profile Dropdown */}
                 <DropdownMenu>

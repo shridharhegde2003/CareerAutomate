@@ -5,15 +5,9 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { DashboardHeader } from "@/components/dashboard-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
-import {
-    FolderGit2,
-    FileText,
-    Target
-} from "lucide-react";
+import { FolderGit2, FileText } from "lucide-react";
 
 import { OnboardingService } from "@/services/onboarding";
 
@@ -21,8 +15,7 @@ function DashboardContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    // Placeholder stats
-    const [profile, setProfile] = useState<any>(null);
+
 
     // Placeholder stats
     const [stats, setStats] = useState({
@@ -77,18 +70,27 @@ function DashboardContent() {
                     router.replace('/onboarding');
                     return;
                 }
-                setProfile(navProfile);
 
                 // User is onboarded, fetch dashboard stats
-                const { data: jobStatus } = await supabase.from('job_search_status').select('resume_versions').single();
-                const { count: projectCount } = await supabase.from('projects').select('*', { count: 'exact', head: true });
-                const { count: certCount } = await supabase.from('certificates').select('*', { count: 'exact', head: true });
+                const { data: { user } } = await supabase.auth.getUser();
+
+                // Fetch project count
+                const { count: projectCount } = await supabase
+                    .from('projects')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', user?.id);
+
+                // Fetch resume count from documents table (document_type is 'Resume' with capital R)
+                const { count: resumeCount } = await supabase
+                    .from('documents')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', user?.id)
+                    .eq('document_type', 'Resume');
 
                 setStats(prev => ({
                     ...prev,
                     projects: projectCount || 0,
-                    certificates: certCount || 0,
-                    resumeVersions: jobStatus?.resume_versions || 0
+                    resumeVersions: resumeCount || 0
                 }));
 
             } catch (err) {
@@ -132,60 +134,6 @@ function DashboardContent() {
                             <p className="text-sm text-muted-foreground mt-1">
                                 Generated versions
                             </p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Skill Gap Analysis - Only if GitHub connected */}
-                    {profile?.github_username ? (
-                        <Card className="lg:col-span-2 border-0 shadow-sm bg-white dark:bg-slate-900">
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <CardTitle>Skill Gap Analysis</CardTitle>
-                                        <CardDescription>Based on your GitHub projects and target roles</CardDescription>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                                    <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-full mb-3">
-                                        <Target className="h-6 w-6 text-slate-400" />
-                                    </div>
-                                    <p className="font-medium">No critical skill gaps detected</p>
-                                    <p className="text-sm mt-1 max-w-sm">
-                                        Great work! Your projects align well with your target roles. Continue building to maintain your edge.
-                                    </p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <Card className="lg:col-span-2 border-0 shadow-sm bg-slate-50 dark:bg-slate-900/50 flex items-center justify-center min-h-[250px]">
-                            <CardContent className="text-center pt-6">
-                                <FolderGit2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-                                <h3 className="font-semibold text-lg max-w-xs mx-auto text-slate-900 dark:text-slate-100">Connect GitHub to unlock Skill Gap Analysis</h3>
-                                <p className="text-sm text-muted-foreground mt-2 mb-4 max-w-xs mx-auto">
-                                    We analyze your projects to identify missing skills for your dream job.
-                                </p>
-                                <Button variant="outline" onClick={() => router.push('/settings')}>Connect GitHub</Button>
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {/* Action Items */}
-                    <Card className="border-0 shadow-sm bg-white dark:bg-slate-900">
-                        <CardHeader>
-                            <CardTitle>Action Items</CardTitle>
-                            <CardDescription>Recommended next steps</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground">
-                                    <p className="text-sm">You're all caught up!</p>
-                                    <p className="text-xs mt-1">Check back later for new recommendations.</p>
-                                </div>
-                            </div>
                         </CardContent>
                     </Card>
                 </div>

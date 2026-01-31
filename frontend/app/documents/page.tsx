@@ -14,7 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { supabase } from "@/lib/supabase";
-import { Edit, Download, Trash2, Upload, FileText, Sparkles, Loader2, Eye, CheckCircle2, X, ExternalLink } from "lucide-react";
+import { Edit, Download, Trash2, Upload, FileText, Sparkles, Loader2, Eye, CheckCircle2, X, ExternalLink, AlertTriangle } from "lucide-react";
+import { useSystemControlsContext } from "@/components/SystemControlsProvider";
 
 const RESUME_SERVICE_URL = process.env.NEXT_PUBLIC_RESUME_SERVICE_URL || '';
 
@@ -22,10 +23,13 @@ interface ResumeDocument {
     id: string;
     title: string;
     role: string | null;
-    template_id: string | null;
     file_url: string | null;
     updated_at: string;
     created_at: string;
+    meta_data?: {
+        template_id?: string;
+        generated_via?: string;
+    };
 }
 
 interface CertificateDocument {
@@ -93,6 +97,9 @@ export default function DocumentsPage() {
     useEffect(() => {
         fetchData();
     }, []);
+
+    // Get system controls for automation status
+    const { automationsStopped } = useSystemControlsContext();
 
     const fetchData = async () => {
         setLoading(true);
@@ -169,7 +176,7 @@ export default function DocumentsPage() {
                 .from('documents')
                 .select('*')
                 .eq('user_id', user.id)
-                .eq('document_type', 'resume')
+                .eq('document_type', 'Resume')
                 .order('updated_at', { ascending: false });
 
             if (error) throw error;
@@ -352,7 +359,23 @@ export default function DocumentsPage() {
         }
     };
 
-    const handleDownload = (url: string) => {
+    // Get the public URL for a file stored in Supabase storage
+    const getStorageUrl = (filePath: string): string => {
+        // If it's already a full URL, return as-is
+        if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+            return filePath;
+        }
+
+        // Get public URL from Supabase storage
+        const { data } = supabase.storage
+            .from('certificates-documents')
+            .getPublicUrl(filePath);
+
+        return data.publicUrl;
+    };
+
+    const handleDownload = async (filePath: string) => {
+        const url = getStorageUrl(filePath);
         window.open(url, '_blank');
     };
 
@@ -488,13 +511,19 @@ export default function DocumentsPage() {
                                             <div className="flex items-end">
                                                 <Button
                                                     onClick={handleGenerateResume}
-                                                    disabled={generating || !selectedRole || !RESUME_SERVICE_URL}
-                                                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                                                    disabled={generating || !selectedRole || !RESUME_SERVICE_URL || automationsStopped}
+                                                    className={`w-full ${automationsStopped ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'}`}
+                                                    title={automationsStopped ? 'Service temporarily unavailable - under maintenance' : ''}
                                                 >
                                                     {generating ? (
                                                         <>
                                                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                                             Generating...
+                                                        </>
+                                                    ) : automationsStopped ? (
+                                                        <>
+                                                            <AlertTriangle className="w-4 h-4 mr-2" />
+                                                            Under Maintenance
                                                         </>
                                                     ) : (
                                                         <>
@@ -506,12 +535,18 @@ export default function DocumentsPage() {
                                             </div>
                                         </div>
 
+                                        {automationsStopped && (
+                                            <p className="text-xs text-orange-600 bg-orange-50 px-3 py-2 rounded flex items-center gap-2">
+                                                <AlertTriangle className="w-4 h-4" />
+                                                Resume generation is temporarily unavailable. Please try again later.
+                                            </p>
+                                        )}
+
                                         {!RESUME_SERVICE_URL && (
                                             <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded">
                                                 Resume service not configured. Please set NEXT_PUBLIC_RESUME_SERVICE_URL.
                                             </p>
                                         )}
-
                                         {generationSuccess && (
                                             <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
@@ -589,7 +624,7 @@ export default function DocumentsPage() {
                                                 <div className="flex-1">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         {getRoleBadge(doc.role)}
-                                                        {getTemplateBadge(doc.template_id)}
+                                                        {getTemplateBadge(doc.meta_data?.template_id || null)}
                                                     </div>
                                                     <h3 className="font-semibold text-lg text-slate-900">{doc.title}</h3>
                                                     <p className="text-sm text-muted-foreground">
@@ -795,9 +830,9 @@ export default function DocumentsPage() {
                                                 {viewingResume.role}
                                             </Badge>
                                         )}
-                                        {viewingResume?.template_id && (
+                                        {viewingResume?.meta_data?.template_id && (
                                             <Badge variant="outline" className="text-xs">
-                                                {viewingResume.template_id === 'modern' ? 'Modern Minimal' : 'Classic Corporate'}
+                                                {viewingResume.meta_data.template_id === 'modern' ? 'Modern Minimal' : 'Classic Corporate'}
                                             </Badge>
                                         )}
                                     </div>
@@ -807,7 +842,7 @@ export default function DocumentsPage() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => viewingResume?.file_url && window.open(viewingResume.file_url, '_blank')}
+                                    onClick={() => viewingResume?.file_url && window.open(getStorageUrl(viewingResume.file_url), '_blank')}
                                 >
                                     <ExternalLink className="w-4 h-4 mr-1" />
                                     Open in New Tab
@@ -834,7 +869,7 @@ export default function DocumentsPage() {
                         <div className="flex-1 bg-gray-100">
                             {viewingResume?.file_url ? (
                                 <iframe
-                                    src={`${viewingResume.file_url}#toolbar=0&navpanes=0&scrollbar=1`}
+                                    src={`${getStorageUrl(viewingResume.file_url)}#toolbar=0&navpanes=0&scrollbar=1`}
                                     className="w-full h-full border-0"
                                     title="Resume PDF Preview"
                                 />
