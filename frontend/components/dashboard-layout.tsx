@@ -1,19 +1,54 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { useSessionTimeout } from "@/hooks/use-session-timeout";
+import { supabase } from "@/lib/supabase";
 
 interface DashboardLayoutProps {
     children: React.ReactNode;
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
+    const router = useRouter();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+    const [isCheckingBlock, setIsCheckingBlock] = useState(true);
+
+    // Check if user is blocked
+    useEffect(() => {
+        const checkBlockedStatus = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+
+                if (!user) {
+                    router.push('/login');
+                    return;
+                }
+
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('is_blocked')
+                    .eq('id', user.id)
+                    .single();
+
+                if (profile?.is_blocked) {
+                    router.push('/blocked');
+                    return;
+                }
+            } catch (error) {
+                console.error('Error checking blocked status:', error);
+            } finally {
+                setIsCheckingBlock(false);
+            }
+        };
+
+        checkBlockedStatus();
+    }, [router]);
 
     // Session timeout - 15 minutes of inactivity
     const handleWarning = useCallback(() => {
@@ -26,6 +61,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         enabled: true,
         onWarning: handleWarning
     });
+
+    // Show loading while checking blocked status
+    if (isCheckingBlock) {
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+                <div className="animate-pulse text-slate-500">Loading...</div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">

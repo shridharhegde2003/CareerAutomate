@@ -451,7 +451,7 @@ export default function DocumentsPage() {
                 <Tabs defaultValue="ai-resume" className="w-full">
                     <TabsList>
                         <TabsTrigger value="ai-resume">AI Resume Builder</TabsTrigger>
-                        <TabsTrigger value="certificates">Certificates & Documents</TabsTrigger>
+                        <TabsTrigger value="my-resumes">My Resumes</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="ai-resume" className="mt-6">
@@ -586,8 +586,57 @@ export default function DocumentsPage() {
                                 </div>
                             </CardContent>
                         </Card>
+                    </TabsContent>
 
-                        {/* Existing Resumes */}
+                    <TabsContent value="my-resumes" className="mt-6">
+                        {/* DOCUMENT UPLOAD FEATURE - COMMENTED OUT FOR FUTURE IMPLEMENTATION
+                        <Card className="mb-6">
+                            <CardContent className="pt-6">
+                                <div className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="doc-type">Document Type</Label>
+                                        <Select>
+                                            <SelectTrigger id="doc-type">
+                                                <SelectValue placeholder="Select document type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {DOC_TYPES.map((type) => (
+                                                    <SelectItem key={type} value={type}>
+                                                        {type}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="file-upload">Upload Document</Label>
+                                        <div className="flex gap-2 mt-2">
+                                            <Input
+                                                id="file-upload"
+                                                type="file"
+                                                accept=".pdf,.jpg,.jpeg,.png"
+                                                onChange={(e) => {
+                                                    const select = document.getElementById('doc-type') as HTMLSelectElement;
+                                                    const docType = select?.value || 'Other';
+                                                    handleFileUpload(e, docType);
+                                                }}
+                                                disabled={uploading}
+                                            />
+                                            <Button disabled={uploading}>
+                                                <Upload className="w-4 h-4 mr-2" />
+                                                {uploading ? 'Uploading...' : 'Upload'}
+                                            </Button>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-2">
+                                            Allowed formats: PDF, JPG, PNG | Max size: 5MB
+                                        </p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        END OF DOCUMENT UPLOAD FEATURE */}
+
+                        {/* Existing Resumes - Moved from AI Resume Builder tab */}
                         <div className="mb-4">
                             <h3 className="text-lg font-semibold text-slate-800">Your Resumes</h3>
                             <p className="text-sm text-muted-foreground">
@@ -611,7 +660,7 @@ export default function DocumentsPage() {
                                         <div className="text-center py-12">
                                             <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                                             <p className="text-muted-foreground">
-                                                No resumes yet. Generate your first AI-powered resume above!
+                                                No resumes yet. Go to AI Resume Builder tab to generate your first resume!
                                             </p>
                                         </div>
                                     </CardContent>
@@ -670,56 +719,8 @@ export default function DocumentsPage() {
                                 ))
                             )}
                         </div>
-                    </TabsContent>
 
-                    <TabsContent value="certificates" className="mt-6">
-                        {/* Upload Section */}
-                        <Card className="mb-6">
-                            <CardContent className="pt-6">
-                                <div className="space-y-4">
-                                    <div>
-                                        <Label htmlFor="doc-type">Document Type</Label>
-                                        <Select>
-                                            <SelectTrigger id="doc-type">
-                                                <SelectValue placeholder="Select document type" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {DOC_TYPES.map((type) => (
-                                                    <SelectItem key={type} value={type}>
-                                                        {type}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="file-upload">Upload Document</Label>
-                                        <div className="flex gap-2 mt-2">
-                                            <Input
-                                                id="file-upload"
-                                                type="file"
-                                                accept=".pdf,.jpg,.jpeg,.png"
-                                                onChange={(e) => {
-                                                    const select = document.getElementById('doc-type') as HTMLSelectElement;
-                                                    const docType = select?.value || 'Other';
-                                                    handleFileUpload(e, docType);
-                                                }}
-                                                disabled={uploading}
-                                            />
-                                            <Button disabled={uploading}>
-                                                <Upload className="w-4 h-4 mr-2" />
-                                                {uploading ? 'Uploading...' : 'Upload'}
-                                            </Button>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground mt-2">
-                                            Allowed formats: PDF, JPG, PNG | Max size: 5MB
-                                        </p>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Documents List */}
+                        {/* CERTIFICATES LIST - COMMENTED OUT FOR FUTURE IMPLEMENTATION
                         <div className="space-y-4">
                             {certificates.length === 0 ? (
                                 <Card>
@@ -783,6 +784,7 @@ export default function DocumentsPage() {
                                 ))
                             )}
                         </div>
+                        END OF CERTIFICATES LIST */}
                     </TabsContent>
                 </Tabs>
             </div>
@@ -814,7 +816,7 @@ export default function DocumentsPage() {
 
             {/* PDF Viewer Dialog */}
             <Dialog open={pdfViewerOpen} onOpenChange={setPdfViewerOpen}>
-                <DialogContent className="max-w-6xl w-[95vw] h-[90vh] p-0 overflow-hidden">
+                <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 overflow-hidden">
                     <div className="flex flex-col h-full">
                         {/* Header */}
                         <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
@@ -869,7 +871,7 @@ export default function DocumentsPage() {
                         <div className="flex-1 bg-gray-100">
                             {viewingResume?.file_url ? (
                                 <iframe
-                                    src={`${getStorageUrl(viewingResume.file_url)}#toolbar=0&navpanes=0&scrollbar=1`}
+                                    src={`${getStorageUrl(viewingResume.file_url)}#toolbar=0&navpanes=0&scrollbar=1&zoom=100`}
                                     className="w-full h-full border-0"
                                     title="Resume PDF Preview"
                                 />
@@ -885,6 +887,6 @@ export default function DocumentsPage() {
                     </div>
                 </DialogContent>
             </Dialog>
-        </DashboardLayout>
+        </DashboardLayout >
     );
 }
